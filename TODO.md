@@ -4,7 +4,7 @@ Entry point for a fresh Claude session. Read this first, then pick a section.
 
 ## Status
 
-0.1.0 scaffolded and pushed to private Forgejo (`bsz/pwdtintii` on git.6bm.de).
+0.1.0 scaffolded and pushed to private Forgejo (`<owner>/pwdtintii`).
 Plugin sources, palette, fzf picker, contrast check, README, LICENSE done.
 Dotfiles still need migration to source the plugin instead of inlining.
 

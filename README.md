@@ -36,7 +36,7 @@ whatever theme you already use.
 ## Install
 
 ```sh
-git clone https://git.6bm.de/bsz/pwdtintii ~/.local/share/pwdtintii
+git clone https://forgejo.example.com/<owner>/pwdtintii ~/.local/share/pwdtintii
 ```
 
 ### zsh
