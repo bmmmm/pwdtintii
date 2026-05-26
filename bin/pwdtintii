@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+# pwdtintii — CLI companion to the shell plugin.
+# Subcommands:
+#   preview-family <fam>   Print colored swatches for a family (stdout, for fzf --preview)
+#   emit-family <fam>      Emit OSC 11 to /dev/tty for live preview of the brightest shade
+#   list                   Print all families
+#   palette                Print the loaded palette path
+#
+# Resolves the palette from PWDTINTII_PALETTE or ../palettes/default.tsv relative to this script.
+
+set -euo pipefail
+
+SELF_DIR="$(cd "$(dirname "$0")" && pwd)"
+PALETTE="${PWDTINTII_PALETTE:-${SELF_DIR}/../palettes/default.tsv}"
+
+if [[ ! -f "$PALETTE" ]]; then
+  echo "pwdtintii: palette not found: $PALETTE" >&2
+  exit 1
+fi
+
+shades_for() {
+  local want="$1"
+  awk -v want="$want" -F'\t' '$1 == want { print $2, $3, $4, $5; exit }' "$PALETTE"
+}
+
+hex_to_rgb() {
+  local hex="${1#\#}"
+  printf '%d %d %d\n' "0x${hex:0:2}" "0x${hex:2:2}" "0x${hex:4:2}"
+}
+
+cmd_preview_family() {
+  local fam="$1"
+  local shades; shades=$(shades_for "$fam")
+  if [[ -z "$shades" ]]; then
+    echo "unknown family: $fam"
+    return 1
+  fi
+  echo "family: $fam"
+  echo
+  local idx=0
+  for hex in $shades; do
+    read -r r g b < <(hex_to_rgb "$hex")
+    # 3 lines tall block + label
+    printf '  \e[48;2;%d;%d;%dm                              \e[0m  shade%d  %s\n' "$r" "$g" "$b" "$idx" "$hex"
+    printf '  \e[48;2;%d;%d;%dm   \e[38;2;220;220;220m\e[3msample ghost text\e[0m\e[48;2;%d;%d;%dm        \e[0m\n' "$r" "$g" "$b" "$r" "$g" "$b"
+    printf '  \e[48;2;%d;%d;%dm                              \e[0m\n' "$r" "$g" "$b"
+    echo
+    idx=$((idx + 1))
+  done
+}
+
+cmd_emit_family() {
+  local fam="$1"
+  local shades; shades=$(shades_for "$fam")
+  [[ -z "$shades" ]] && return 0
+  # Emit the brightest shade (s2 = third) so live-preview is visible
+  local third
+  third=$(echo "$shades" | awk '{print $3}')
+  if [[ -w /dev/tty ]]; then
+    printf '\e]11;%s\a' "$third" > /dev/tty
+  fi
+}
+
+cmd_list() {
+  awk -F'\t' '$1 != "" && $1 != "family" && $1 !~ /^#/ { print $1 }' "$PALETTE"
+}
+
+cmd_palette() {
+  echo "$PALETTE"
+}
+
+cmd=${1:-}
+shift || true
+case "$cmd" in
+  preview-family) cmd_preview_family "${1:-}" ;;
+  emit-family)    cmd_emit_family "${1:-}" ;;
+  list)           cmd_list ;;
+  palette)        cmd_palette ;;
+  -h|--help|help|"")
+    sed -n '2,11p' "$0" ;;
+  *)
+    echo "pwdtintii: unknown subcommand: $cmd" >&2
+    exit 1
+    ;;
+esac

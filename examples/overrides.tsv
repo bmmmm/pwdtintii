@@ -1,0 +1,9 @@
+# Example named-overrides file. Format: project_basename<TAB>family
+# Activate by setting before sourcing the plugin:
+#   export PWDTINTII_OVERRIDES_FILE=~/.config/pwdtintii/overrides.tsv
+#
+# project_basename is the last path segment of the resolved dir-key
+# (usually the git-repo name). The override takes precedence over the hash.
+
+# bitcircus	green
+# my-secret-project	wine
