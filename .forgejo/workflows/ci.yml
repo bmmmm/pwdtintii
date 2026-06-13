@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends shellcheck zsh bats
+
+      - name: Shellcheck (bash sources)
+        # --severity=warning skips the SC2317 info false-positive on the
+        # `return || exit` source-or-execute guard.
+        run: |
+          shellcheck -s bash --severity=warning \
+            bin/pwdtintii \
+            scripts/preview.sh \
+            scripts/contrast-check.sh \
+            pwdtintii.plugin.bash \
+            tests/helper.bash \
+            tests/run.sh
+
+      - name: Zsh syntax check
+        run: zsh -n pwdtintii.plugin.zsh
+
+      - name: Bats suite
+        run: bats tests/
