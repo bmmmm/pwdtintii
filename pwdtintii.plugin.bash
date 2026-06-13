@@ -5,10 +5,11 @@
 # Requires bash 4+ (associative arrays). On macOS install via `brew install bash`.
 #
 # Public functions:
-#   pwdtintii_apply          — re-apply background color to current shell
-#   pwdtintii_pick [family]  — pin a family for this shell (fzf picker if no arg)
-#   pwdtintii_list           — list families with current dir mapping
-#   pwdtintii_reload         — re-load the palette TSV
+#   pwdtintii_apply           — re-apply background color to current shell
+#   pwdtintii_pick [family]   — pin a family for this shell (fzf picker if no arg)
+#   pwdtintii_pick --auto     — clear the pin, back to dir-derived auto mode
+#   pwdtintii_list            — list families with current dir mapping
+#   pwdtintii_reload          — re-load the palette TSV
 #
 # Config (set BEFORE sourcing):
 #   PWDTINTII_PALETTE         — path to palette TSV (default: $plugin_dir/palettes/default.tsv)
@@ -21,8 +22,16 @@ if [[ -z "${BASH_VERSINFO[0]:-}" ]] || (( BASH_VERSINFO[0] < 4 )); then
   return 1 2>/dev/null || exit 1
 fi
 
-# ── Resolve own location ─────────────────────────────────────────────────────
-_pwdtintii_self="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# ── Resolve own location (follow symlinks; BSD+GNU portable, no readlink -f) ──
+_pwdtintii_self="${BASH_SOURCE[0]}"
+while [[ -h "$_pwdtintii_self" ]]; do
+  _pwdtintii_dir="$(cd -P "$(dirname "$_pwdtintii_self")" && pwd)"
+  _pwdtintii_self="$(readlink "$_pwdtintii_self")"
+  [[ "$_pwdtintii_self" != /* ]] && _pwdtintii_self="${_pwdtintii_dir}/${_pwdtintii_self}"
+done
+_pwdtintii_self="$(cd -P "$(dirname "$_pwdtintii_self")" && pwd)"
+unset _pwdtintii_dir
+
 : "${PWDTINTII_PALETTE:=${_pwdtintii_self}/palettes/default.tsv}"
 : "${PWDTINTII_SHADES_DIR:=${HOME}/.config/pwdtintii/shades}"
 : "${PWDTINTII_DIR_KEY_FN:=_pwdtintii_default_key}"
@@ -31,11 +40,14 @@ declare -gA _pwdtintii_shades
 declare -ga _pwdtintii_families
 declare -gA _pwdtintii_overrides
 
-# Hash command: shasum (macOS) or sha1sum (Linux)
+# Hash command: shasum (macOS) or sha1sum (Linux). Fail loudly if neither.
 if command -v shasum >/dev/null 2>&1; then
   _PWDTINTII_HASHCMD=shasum
-else
+elif command -v sha1sum >/dev/null 2>&1; then
   _PWDTINTII_HASHCMD=sha1sum
+else
+  echo "pwdtintii: needs 'shasum' or 'sha1sum' on PATH" >&2
+  return 1 2>/dev/null || exit 1
 fi
 
 # ── Palette loader ───────────────────────────────────────────────────────────
@@ -60,7 +72,7 @@ _pwdtintii_load_overrides() {
   done < "$PWDTINTII_OVERRIDES_FILE"
 }
 
-# ── Dir-key strategy ─────────────────────────────────────────────────────────
+# ── Dir-key strategy: git-root or first path component under $HOME ────────────
 _pwdtintii_default_key() {
   local dir="$PWD"
   while [[ "$dir" != "/" && "$dir" != "$HOME" ]]; do
@@ -71,34 +83,61 @@ _pwdtintii_default_key() {
   if [[ "$PWD" == "$HOME" ]]; then
     printf '%s\n' "$HOME"
   elif [[ "$PWD" == "$HOME"/* ]]; then
-    local rel="${PWD#${HOME}/}"
+    local rel="${PWD#"${HOME}"/}"
     printf '%s\n' "${HOME}/${rel%%/*}"
   else
-    printf '%s\n' "/${PWD#/}"
+    local rel="${PWD#/}"
+    printf '%s\n' "/${rel%%/*}"
   fi
 }
 
 # ── Family resolver: override > hash → family ────────────────────────────────
 _pwdtintii_family_for() {
   local key="$1"
+  (( ${#_pwdtintii_families[@]} == 0 )) && return 1
   local proj="${key##*/}"
-  if [[ -n "${_pwdtintii_overrides[$proj]:-}" ]]; then
+  if [[ -n "$proj" && -n "${_pwdtintii_overrides[$proj]:-}" ]]; then
     printf '%s\n' "${_pwdtintii_overrides[$proj]}"
     return
   fi
   local h
   h=$(printf '%s' "$key" | "$_PWDTINTII_HASHCMD" | cut -c1-8)
-  local idx=$(( 0x$h % ${#_pwdtintii_families[@]} ))
-  printf '%s\n' "${_pwdtintii_families[$idx]}"
+  printf '%s\n' "${_pwdtintii_families[$(( 0x$h % ${#_pwdtintii_families[@]} ))]}"
 }
 
-# ── Shade picker ─────────────────────────────────────────────────────────────
+# ── Shade picker: per-key registry, PID-GC, mkdir-locked read-modify-write ───
+# Takes the precomputed keyhash as $3 so the prompt hot-path can cache it.
 _pwdtintii_pick_shade() {
-  local key="$1" forced="${2:-}" my_pid=$$
-  mkdir -p "$PWDTINTII_SHADES_DIR"
-  local keyhash
-  keyhash=$(printf '%s' "$key" | "$_PWDTINTII_HASHCMD" | cut -c1-12)
+  local key="$1" forced="${2:-}" keyhash="$3" my_pid=$$
   local reg="${PWDTINTII_SHADES_DIR}/${keyhash}.tsv"
+  local lock="${reg}.lock"
+  mkdir -p "$PWDTINTII_SHADES_DIR"
+
+  # Acquire a lock around the read-modify-write so concurrently starting shells
+  # don't clobber each other's entry. Bounded + fail-open: a prompt never hangs.
+  local locked="" i lpid pidless=0
+  for i in 1 2 3 4 5 6 7 8 9 10; do
+    if mkdir "$lock" 2>/dev/null; then locked=1; break; fi
+    lpid=""
+    [[ -f "$lock/pid" ]] && read -r lpid < "$lock/pid" 2>/dev/null
+    if [[ -n "$lpid" ]]; then
+      pidless=0
+      if ! kill -0 "$lpid" 2>/dev/null; then          # holder is dead → steal
+        rm -f "$lock/pid" 2>/dev/null; rmdir "$lock" 2>/dev/null; continue
+      fi
+    else
+      # Lock with no pid yet: give the holder a moment to write it, but if it
+      # stays pid-less across a few polls it's an orphan (holder died between
+      # mkdir and the pid write). rmdir fails safe if the pid landed meanwhile.
+      pidless=$((pidless + 1))
+      if (( pidless >= 3 )); then
+        rmdir "$lock" 2>/dev/null; pidless=0; continue
+      fi
+    fi
+    sleep 0.05
+  done
+  [[ -n "$locked" ]] && printf '%s\n' "$my_pid" > "$lock/pid"
+
   : > "${reg}.new"
   declare -A in_use
   if [[ -f "$reg" ]]; then
@@ -119,22 +158,36 @@ _pwdtintii_pick_shade() {
   fi
   printf '%s\t%s\t%s\n' "$my_pid" "$pick" "$(date +%s)" >> "${reg}.new"
   mv "${reg}.new" "$reg"
+  [[ -n "$locked" ]] && { rm -f "$lock/pid" 2>/dev/null; rmdir "$lock" 2>/dev/null; }
   printf '%s\n' "$pick"
 }
 
+# Drop this shell's entry from its registry; remove the file if it was the last.
+# Lock-free by design: the EXIT trap must stay fast and never hang.
 _pwdtintii_release() {
-  [[ -n "${_PWDTINTII_REG:-}" && -f "$_PWDTINTII_REG" ]] && {
-    grep -v "^$$"$'\t' "$_PWDTINTII_REG" > "${_PWDTINTII_REG}.t" 2>/dev/null \
-      && mv "${_PWDTINTII_REG}.t" "$_PWDTINTII_REG"
-  }
+  [[ -n "${_PWDTINTII_REG:-}" && -f "$_PWDTINTII_REG" ]] || return 0
+  local tmp="${_PWDTINTII_REG}.t" rc
+  grep -v "^$$"$'\t' "$_PWDTINTII_REG" > "$tmp" 2>/dev/null; rc=$?
+  if (( rc == 0 )); then
+    mv "$tmp" "$_PWDTINTII_REG"
+  elif (( rc == 1 )); then
+    rm -f "$tmp" "$_PWDTINTII_REG" 2>/dev/null   # we were the only entry
+  else
+    rm -f "$tmp" 2>/dev/null                      # read error: leave registry as-is
+  fi
 }
 
+# ── OSC 11 emission (validate hex; refuse to emit anything else) ─────────────
 _pwdtintii_emit() {
-  printf '\e]11;%s\a' "$1"
+  local hex="$1"
+  [[ "$hex" == \#* ]] || hex="#$hex"
+  [[ "$hex" =~ ^#[0-9a-fA-F]{6}$ ]] || return 1
+  printf '\e]11;%s\a' "$hex"
 }
 
 # ── Public: apply ────────────────────────────────────────────────────────────
 pwdtintii_apply() {
+  (( ${#_pwdtintii_families[@]} == 0 )) && return 0
   local key family shade_idx
   key=$("$PWDTINTII_DIR_KEY_FN")
 
@@ -144,19 +197,20 @@ pwdtintii_apply() {
 
   if [[ "${_PWDTINTII_PINNED:-}" != "$key" || -n "${_PWDTINTII_FORCE_REAPPLY:-}" ]]; then
     _pwdtintii_release
-    shade_idx=$(_pwdtintii_pick_shade "$key")
-    _PWDTINTII_PINNED="$key"
-    _PWDTINTII_SHADE_IDX="$shade_idx"
-    [[ -z "${family:-}" ]] && family=$(_pwdtintii_family_for "$key")
-    _PWDTINTII_FAMILY="$family"
     local keyhash
     keyhash=$(printf '%s' "$key" | "$_PWDTINTII_HASHCMD" | cut -c1-12)
+    shade_idx=$(_pwdtintii_pick_shade "$key" "" "$keyhash")
+    _PWDTINTII_PINNED="$key"
+    _PWDTINTII_SHADE_IDX="$shade_idx"
+    _PWDTINTII_KEYHASH="$keyhash"
+    [[ -z "${family:-}" ]] && family=$(_pwdtintii_family_for "$key")
+    _PWDTINTII_FAMILY="$family"
     _PWDTINTII_REG="${PWDTINTII_SHADES_DIR}/${keyhash}.tsv"
     unset _PWDTINTII_FORCE_REAPPLY
   else
+    # Same key as last prompt: nothing changed → just re-emit, no forks.
     shade_idx="$_PWDTINTII_SHADE_IDX"
     [[ -z "${family:-}" ]] && family="$_PWDTINTII_FAMILY"
-    _pwdtintii_pick_shade "$key" "$shade_idx" > /dev/null
   fi
 
   local shades
@@ -167,10 +221,15 @@ pwdtintii_apply() {
 # ── Public: pick ─────────────────────────────────────────────────────────────
 pwdtintii_pick() {
   local family="${1:-}"
+  if [[ "$family" == "--auto" || "$family" == "-" ]]; then
+    unset _PWDTINTII_FORCED_FAMILY
+    _pwdtintii_restore
+    return 0
+  fi
   if [[ -z "$family" ]]; then
     if command -v fzf >/dev/null 2>&1; then
-      family=$(_pwdtintii_pick_interactive)
-      [[ -z "$family" ]] && return 0
+      family=$(_pwdtintii_pick_interactive) || { _pwdtintii_restore; return 0; }
+      [[ -z "$family" ]] && { _pwdtintii_restore; return 0; }
     else
       _pwdtintii_pick_menu
       return $?
@@ -186,6 +245,14 @@ pwdtintii_pick() {
   pwdtintii_apply
 }
 
+# Reapply outside any command-substitution so the OSC reaches the terminal.
+_pwdtintii_restore() {
+  _PWDTINTII_FORCE_REAPPLY=1
+  pwdtintii_apply
+}
+
+# fzf picker: prints the chosen family on stdout, propagates fzf's exit code.
+# The caller handles cancel-restore — emitting from inside $() would be captured.
 _pwdtintii_pick_interactive() {
   printf '%s\n' "${_pwdtintii_families[@]}" | \
     fzf \
@@ -194,16 +261,12 @@ _pwdtintii_pick_interactive() {
       --reverse \
       --preview="$_pwdtintii_self/bin/pwdtintii preview-family {}" \
       --preview-window=right:50%:wrap \
+      --bind="change:first" \
       --bind="focus:execute-silent($_pwdtintii_self/bin/pwdtintii emit-family {})" \
       --header="↑↓ navigate · ENTER pin · ESC cancel"
-  local rc=$?
-  if (( rc != 0 )); then
-    _PWDTINTII_FORCE_REAPPLY=1
-    pwdtintii_apply
-  fi
-  return $rc
 }
 
+# Numbered-menu fallback when fzf isn't available
 _pwdtintii_pick_menu() {
   local i=1 fam
   echo "available families:"
@@ -216,7 +279,12 @@ _pwdtintii_pick_menu() {
   read -r choice
   [[ -z "$choice" ]] && return 0
   if [[ "$choice" =~ ^[0-9]+$ ]]; then
-    fam="${_pwdtintii_families[$((choice - 1))]}"
+    # 10# forces base-10 so a leading zero (08, 09) isn't read as octal.
+    if (( 10#$choice < 1 || 10#$choice > ${#_pwdtintii_families[@]} )); then
+      echo "pwdtintii: out of range: $choice" >&2
+      return 1
+    fi
+    fam="${_pwdtintii_families[$((10#$choice - 1))]}"
   else
     fam="$choice"
   fi
@@ -251,6 +319,9 @@ pwdtintii_reload() {
 # PROMPT_COMMAND idiom: append, don't replace
 _pwdtintii_load_palette
 _pwdtintii_load_overrides
+if (( ${#_pwdtintii_families[@]} == 0 )); then
+  echo "pwdtintii: palette '$PWDTINTII_PALETTE' has no families — tinting disabled" >&2
+fi
 
 if [[ ";${PROMPT_COMMAND:-};" != *";pwdtintii_apply;"* ]]; then
   PROMPT_COMMAND="${PROMPT_COMMAND:+${PROMPT_COMMAND%;};}pwdtintii_apply"

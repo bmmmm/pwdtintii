@@ -8,13 +8,12 @@ set -euo pipefail
 SELF_DIR="$(cd "$(dirname "$0")" && pwd)"
 PALETTE="${1:-${PWDTINTII_PALETTE:-${SELF_DIR}/../palettes/default.tsv}}"
 
-# Foregrounds we care about
-read -r -d '' FGS <<'EOF' || true
-white	#ffffff
-text	#d0d0d0
-ghost	#dcdcdc
-EOF
+if [[ ! -f "$PALETTE" ]]; then
+  echo "palette not found: $PALETTE" >&2
+  exit 1
+fi
 
+# Foregrounds we check against live in the Python block below (single source).
 python3 - "$PALETTE" <<'PY'
 import sys
 
