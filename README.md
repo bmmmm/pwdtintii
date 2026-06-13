@@ -5,7 +5,7 @@ into gets its own background color — deterministically chosen from a 37-family
 palette, with a different shade per split/pane in the same directory. No
 daemon, no persisted state, PID-tracked, terminal-agnostic via OSC 11.
 
-Status: 0.1.0 · private alpha · works on zsh + bash 4+
+Status: 0.1.1 · private alpha · works on zsh + bash 4+
 
 ```
 ~/ops              → slate (cool gray-blue)
@@ -29,7 +29,8 @@ whatever theme you already use.
 - A terminal that honors OSC 11 (tested with Ghostty, also works in Alacritty,
   WezTerm, kitty, iTerm2, modern xterm).
 - **zsh**, or **bash 4+** (Linux default, macOS needs `brew install bash`).
-- `shasum` (macOS) or `sha1sum` (Linux) — for the dir-key hash.
+- `shasum` (macOS) or `sha1sum` (Linux) — for the dir-key hash; detected at
+  load in both shells, fails loudly if neither is present.
 - Optional: `fzf` — for interactive `pwdtintii_pick`. Falls back to a numbered
   menu if missing.
 
@@ -64,10 +65,12 @@ Open a fresh shell. Background tint should kick in on the first prompt.
 
 | Function          | What it does |
 |-------------------|---|
-| `pwdtintii_apply` | Re-apply background color (also runs automatically on each prompt) |
-| `pwdtintii_pick`  | Pin a family for this shell. No arg → fzf picker with live preview |
-| `pwdtintii_list`  | Show the current key, family, shade, plus all available families |
-| `pwdtintii_reload`| Re-load the palette TSV |
+| `pwdtintii_apply`      | Re-apply background color (also runs automatically on each prompt) |
+| `pwdtintii_pick`       | Pin a family for this shell. No arg → fzf picker with live preview |
+| `pwdtintii_pick blue`  | Pin the `blue` family directly |
+| `pwdtintii_pick --auto`| Clear the pin, return to dir-derived auto mode |
+| `pwdtintii_list`       | Show the current key, family, shade, plus all available families |
+| `pwdtintii_reload`     | Re-load the palette TSV |
 
 With `aliases.zsh` / `aliases.bash` sourced, you get `pt`, `ptpick`, `ptlist`,
 `ptreload`, `ptpreview`, `ptcontrast`.
@@ -127,11 +130,27 @@ scripts/contrast-check.sh
 2. **Family** — `shasum(key) % family_count` → deterministic family.
 3. **Shade** — per-key registry at `$PWDTINTII_SHADES_DIR/<keyhash>.tsv` holds
    `pid<TAB>shade_idx<TAB>timestamp` lines. Each new shell picks the lowest
-   unused shade for its dir; dead PIDs are GC'd. On `cd`, the shell releases
-   its old key and picks a fresh shade for the new key.
+   unused shade for its dir; dead PIDs are GC'd. The read-modify-write is
+   guarded by a `mkdir` lock (fail-open) so shells starting at the same time
+   don't collide. On `cd`, the shell releases its old key and picks a fresh
+   shade for the new key. Steady-state prompts (same dir) only re-emit — no
+   subprocess work.
 4. **Emit** — `printf '\e]11;<hex>\a'` (OSC 11) sets the terminal background.
 5. **Hooks** — `precmd` (zsh) or `PROMPT_COMMAND` (bash) re-applies on every
    prompt. `zshexit` / `trap EXIT` releases the registry entry.
+
+## Development
+
+The bash and zsh plugins are kept behaviourally in lockstep (same key, family,
+and registry hash for any directory). A bats suite enforces that:
+
+```sh
+tests/run.sh            # or: bats tests/
+```
+
+On macOS the default `/bin/bash` is 3.2; point the suite at a newer one with
+`PWDTINTII_TEST_BASH=/opt/homebrew/bin/bash tests/run.sh`. CI runs shellcheck,
+a `zsh -n` syntax check, and the bats suite on every push.
 
 ## Roadmap
 

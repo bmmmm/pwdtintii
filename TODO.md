@@ -4,8 +4,9 @@ Entry point for a fresh Claude session. Read this first, then pick a section.
 
 ## Status
 
-0.1.0 scaffolded and pushed to private Forgejo (`<owner>/pwdtintii`).
-Plugin sources, palette, fzf picker, contrast check, README, LICENSE done.
+0.1.1 — bug-fix pass over the 0.1.0 scaffold. Plugin sources, palette, fzf
+picker, contrast check, README, LICENSE done; bash/zsh drift bugs fixed and
+locked down with a bats suite + Forgejo CI (see CHANGELOG 0.1.1).
 Dotfiles still need migration to source the plugin instead of inlining.
 
 ## Next session — start here
@@ -29,7 +30,7 @@ Dotfiles still need migration to source the plugin instead of inlining.
 ## Open work (small)
 
 - [ ] Demo GIF for README (asciinema → agg, or screen capture)
-- [ ] Tag `v0.1.0` after verification passes
+- [ ] Tag `v0.1.1` after Ghostty verification passes
 - [ ] Add to skills-inventory if relevant
 - [ ] Eventually: GitHub mirror via `/new-mirrored-repo` (currently private only)
 
@@ -54,8 +55,8 @@ Dotfiles still need migration to source the plugin instead of inlining.
 
 ## Known caveats
 
-- shasum vs sha1sum: detected at plugin load. If you're on a system with
-  neither, the plugin will fail loudly.
+- shasum vs sha1sum: detected at plugin load in **both** shells. If you're on a
+  system with neither, the plugin fails loudly at load.
 - Ghostty's own shell-integration also defines `_ghostty_precmd` — we use a
   different namespace (`_pwdtintii_*`) so no clash.
 - bash 3.2 (macOS default `/bin/bash`) is NOT supported — needs associative
@@ -74,6 +75,14 @@ pwdtintii/
 ├── scripts/
 │   ├── preview.sh          # visual palette dump
 │   └── contrast-check.sh   # WCAG check
+├── tests/                  # bats suite coupling bash + zsh
+│   ├── helper.bash
+│   ├── parity.bats         # cross-shell key/family/hash parity
+│   ├── plugin.bats         # bash plugin behaviour
+│   ├── cli.bats            # bin/pwdtintii subcommands
+│   └── run.sh
+├── .forgejo/workflows/
+│   └── ci.yml              # shellcheck + zsh -n + bats
 ├── examples/
 │   ├── aliases.zsh         # opt-in pt, ptpick, ...
 │   ├── aliases.bash
