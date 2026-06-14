@@ -82,3 +82,42 @@ teardown() { teardown_sandbox; }
   [[ "$output" == *"unknown command"* ]]
   [[ "$output" == *"rc=1"* ]]
 }
+
+# ── cross-shell shade-registry coordination ──────────────────────────────────
+# The core promise: a zsh shell and a bash shell in the same dir get *distinct*
+# shades. The hash-parity test above proves both compute the same registry file
+# name; this proves the bash picker honours an entry written under a hash that
+# zsh computed — i.e. the two shells really share one registry end to end.
+@test "cross-shell: bash avoids a shade held under a zsh-computed registry hash" {
+  key="/testhome/projects/shared"
+  h="$(zsh_eval /testhome / 'print -rn -- "'"$key"'" | $_PWDTINTII_HASHCMD | cut -c1-12')"
+  [ -n "$h" ]
+  mkdir -p "$PWDTINTII_SHADES_DIR"
+  sleep 30 & live=$!
+  printf '%s\t0\t1\n' "$live" > "$PWDTINTII_SHADES_DIR/$h.tsv"
+  run bash_eval /testhome / '_pwdtintii_pick_shade "'"$key"'" "" "'"$h"'"'
+  kill "$live" 2>/dev/null
+  [ "$output" = "1" ]
+}
+
+# zsh's shade registry is logic-mirrored from bash; plugin.bats exercises the
+# bash side, these guard the zsh side directly (skip live PIDs, reclaim dead).
+@test "zsh pick_shade skips a shade held by a live PID" {
+  run zsh_eval / / '
+    mkdir -p "$PWDTINTII_SHADES_DIR"
+    sleep 30 & live=$!
+    printf "%s\t0\t1\n" "$live" > "$PWDTINTII_SHADES_DIR/zz.tsv"
+    _pwdtintii_pick_shade "k" "" "zz"
+    kill "$live" 2>/dev/null
+  '
+  [ "$output" = "1" ]
+}
+
+@test "zsh pick_shade reclaims a shade from a dead PID" {
+  run zsh_eval / / '
+    mkdir -p "$PWDTINTII_SHADES_DIR"
+    printf "999999\t0\t1\n" > "$PWDTINTII_SHADES_DIR/zz.tsv"
+    _pwdtintii_pick_shade "k" "" "zz"
+  '
+  [ "$output" = "0" ]
+}

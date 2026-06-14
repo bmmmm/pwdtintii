@@ -155,6 +155,7 @@ cmd_actions() {
     pick     'pick'     'pin a color family (live picker)' \
     list     'list'     'families + current mapping' \
     auto     'auto'     'back to directory-auto (unpin)' \
+    off      'off'      'stop tinting, reset background' \
     reload   'reload'   're-read the palette from disk' \
     preview  'preview'  'visual dump of the whole palette' \
     contrast 'contrast' 'WCAG contrast check of all shades'
@@ -179,6 +180,12 @@ cmd_describe_action() {
       printf 'Clears a pinned family so the background follows the\n'
       printf 'current directory hash again.\n\n'
       printf 'Direct: pt auto   (same as pt pick --auto)\n' ;;
+    off)
+      printf 'off — stop tinting\n\n'
+      printf 'Resets the terminal background to its default (OSC 111)\n'
+      printf 'and stops re-tinting on every prompt. Re-enable with\n'
+      printf 'pt auto, pt pick, or pt reload.\n\n'
+      printf 'Direct: pt off\n' ;;
     reload)
       printf 'reload — re-read the palette\n\n'
       printf 'Reloads the palette TSV (and overrides) from disk and\n'
