@@ -83,6 +83,21 @@ teardown() { teardown_sandbox; }
   [[ "$output" == *"rc=1"* ]]
 }
 
+# The picker's dark/light toggle commits through _pwdtintii_set_palette in both
+# shells; plugin.bats exercises the bash side, this guards the zsh side.
+@test "zsh set_palette switches the active palette (light shades differ)" {
+  run zsh_eval /testhome /testhome '
+    dark="${_pwdtintii_shades[blue]}"
+    _pwdtintii_set_palette "$_pwdtintii_self/palettes/light.tsv"
+    light="${_pwdtintii_shades[blue]}"
+    [[ "$PWDTINTII_PALETTE" == *"/light.tsv" ]] && print pal-ok
+    [[ -n "$light" && "$dark" != "$light" ]] && print shades-differ
+  '
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"pal-ok"* ]]
+  [[ "$output" == *"shades-differ"* ]]
+}
+
 # ── cross-shell shade-registry coordination ──────────────────────────────────
 # The core promise: a zsh shell and a bash shell in the same dir get *distinct*
 # shades. The hash-parity test above proves both compute the same registry file

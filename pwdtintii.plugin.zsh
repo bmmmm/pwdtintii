@@ -74,6 +74,15 @@ _pwdtintii_load_overrides() {
   done < "$PWDTINTII_OVERRIDES_FILE"
 }
 
+# Switch the active palette for this shell (the picker's dark/light toggle
+# commits through here). Reloads families + overrides; does not re-emit.
+_pwdtintii_set_palette() {
+  [[ "$1" == "$PWDTINTII_PALETTE" ]] && return 0
+  PWDTINTII_PALETTE="$1"
+  _pwdtintii_load_palette
+  _pwdtintii_load_overrides
+}
+
 # ── Dir-key strategy: git-root or first path component under $HOME ───────────
 _pwdtintii_default_key() {
   local dir="$PWD"
@@ -240,8 +249,13 @@ pwdtintii_pick() {
   fi
   if [[ -z "$family" ]]; then
     if command -v fzf >/dev/null 2>&1; then
-      family=$(_pwdtintii_pick_interactive) || { _pwdtintii_restore; return 0; }
-      [[ -z "$family" ]] && { _pwdtintii_restore; return 0; }
+      local picked palfile
+      picked=$(_pwdtintii_pick_interactive) || { _pwdtintii_restore; return 0; }
+      [[ -z "$picked" ]] && { _pwdtintii_restore; return 0; }
+      palfile="${picked%%$'\t'*}"
+      family="${picked#*$'\t'}"
+      # Committing a pick from the other group switches this shell's palette.
+      [[ -n "$palfile" && "$palfile" != "$PWDTINTII_PALETTE" ]] && _pwdtintii_set_palette "$palfile"
     else
       _pwdtintii_pick_menu
       return $?
@@ -275,19 +289,54 @@ pwdtintii_off() {
   printf '\e]111\a'
 }
 
-# fzf picker: prints the chosen family on stdout, propagates fzf's exit code.
-# The caller handles cancel-restore — emitting from inside $() would be captured.
+# fzf picker. Prints "<palette-file>\t<family>" for the committed pick, so the
+# caller can switch this shell to that group's palette. ctrl-t toggles between
+# the bundled dark and light groups, so both stay reachable without listing all
+# of them at once. Propagates fzf's exit code on cancel; the caller restores —
+# emitting from inside $() would be captured.
 _pwdtintii_pick_interactive() {
-  printf '%s\n' "${_pwdtintii_families[@]}" | \
-    fzf \
-      --prompt='pick family > ' \
-      --height=100% \
-      --reverse \
-      --preview="$_pwdtintii_self/bin/pwdtintii preview-family {}" \
-      --preview-window=right:50%:nowrap \
-      --bind="change:first" \
-      --bind="focus:execute-silent($_pwdtintii_self/bin/pwdtintii emit-family {})" \
-      --header="↑↓ navigate · ENTER pin · ESC cancel"
+  local dark="${_pwdtintii_self}/palettes/default.tsv"
+  local light="${_pwdtintii_self}/palettes/light.tsv"
+  # Offer the toggle only with both bundled palettes in play; a custom
+  # PWDTINTII_PALETTE gets a plain single-group picker.
+  local group=dark toggle=1
+  [[ "$PWDTINTII_PALETTE" == "$light" ]] && group=light
+  if [[ ! -f "$light" || ( "$PWDTINTII_PALETTE" != "$dark" && "$PWDTINTII_PALETTE" != "$light" ) ]]; then
+    toggle=0
+  fi
+  local grouppal other label hdr out key sel
+  while true; do
+    if (( toggle )); then
+      if [[ "$group" == light ]]; then grouppal="$light"; other=dark; else grouppal="$dark"; other=light; fi
+      label="$group"
+      hdr="↑↓ · ENTER pin · ctrl-t: ${other} theme · ESC cancel"
+    else
+      grouppal="$PWDTINTII_PALETTE"; label=family
+      hdr="↑↓ navigate · ENTER pin · ESC cancel"
+    fi
+    out=$(
+      export PWDTINTII_PALETTE="$grouppal"
+      "$_pwdtintii_self/bin/pwdtintii" list \
+        | fzf \
+            --expect=ctrl-t \
+            --prompt="pick ${label} > " \
+            --height=100% \
+            --reverse \
+            --preview="$_pwdtintii_self/bin/pwdtintii preview-family {}" \
+            --preview-window=right:50%:nowrap \
+            --bind="change:first" \
+            --bind="focus:execute-silent($_pwdtintii_self/bin/pwdtintii emit-family {})" \
+            --header="$hdr"
+    ) || return 1
+    key="${out%%$'\n'*}"
+    sel="${out#*$'\n'}"
+    # ctrl-t always re-loops (never commits the highlight); it flips the group
+    # only when the toggle is active, so it's a harmless redraw otherwise.
+    if [[ "$key" == "ctrl-t" ]]; then (( toggle )) && group="$other"; continue; fi
+    [[ -z "$sel" ]] && return 1
+    print -r -- "${grouppal}"$'\t'"${sel}"
+    return 0
+  done
 }
 
 # Numbered-menu fallback when fzf isn't available
@@ -457,7 +506,7 @@ _pwdtintii_help() {
   _pwdtintii_is_stale && print -r -- "  (plugin changed on disk — re-source or open a new shell)"
   print
   print -r -- "  pt                 open the action menu (this list without fzf)"
-  print -r -- "  pt pick [family]   pin a color family (live picker)"
+  print -r -- "  pt pick [family]   pin a color family (picker; ctrl-t: dark/light)"
   print -r -- "  pt list            families + current mapping"
   print -r -- "  pt auto            back to directory-derived auto (unpin)"
   print -r -- "  pt off             stop tinting + reset the terminal background"

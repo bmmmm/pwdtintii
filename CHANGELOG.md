@@ -27,6 +27,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `PWDTINTII_PALETTE=~/.local/share/pwdtintii/palettes/light.tsv`. Derived from
   `default.tsv` by `scripts/gen-light-palette.py` (hue preserved, shades placed
   on a WCAG-luminance ladder) and verified readable against dark text.
+- **Dark/light toggle in the `pt pick` picker** — `ctrl-t` flips between the
+  dark and light family groups so both stay reachable without listing all of
+  them at once; committing a pick from a group switches this shell to that
+  group's palette. No persisted state: it is scoped to the running shell, and an
+  explicit `PWDTINTII_PALETTE` in your rc still sets the startup default.
 
 ### Changed
 - CI consolidated into a single `.github/workflows/ci.yml`, read by both
