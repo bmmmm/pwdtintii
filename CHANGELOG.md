@@ -3,9 +3,20 @@
 All notable changes to pwdtintii will be documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [0.1.1] — 2026-06-13
+## [0.1.1] — 2026-06-14
 
 ### Fixed
+- **fzf preview height** — the family preview now stretches to fill the pane
+  (`FZF_PREVIEW_LINES`) instead of a fixed ~18 lines that left the lower half
+  empty and pushed the fourth shade behind a scrollbar.
+- **live focus tone** — hovering a family in the picker emitted shade2 as the
+  background, so the shade2 swatch vanished into it; it now emits a dimmed
+  family tone (shade0 × 50%), darker than all four shades, so each stays
+  distinct.
+- **emit under `set -e`** — `emit-family` no longer aborts when there is no
+  controlling `/dev/tty` (the failed redirect is fully contained).
+- **CLI help leak** — `pwdtintii help` (the CLI) printed `set -euo pipefail`
+  from the source below the doc block; it now stops at the first blank line.
 - **fzf picker cancel** — pressing ESC no longer captured the restore OSC
   sequence into a variable; the picker now returns only the family and the
   caller restores the background, so cancel correctly reverts the tint.
@@ -35,13 +46,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   malformed palette).
 
 ### Added
+- **`pt` entry point** — bare `pt` opens an fzf action menu listing every
+  command (with a live description in the preview pane); selecting one runs it.
+  The menu loops: after an action it reopens, so display-only actions (`list`,
+  `preview`, `contrast`) pause for a keypress and return to it — ESC at the menu
+  quits to the shell, ESC in the family picker steps back to the menu. The
+  header shows the current family/shade. `pt <cmd>` dispatches directly: `pick`,
+  `list`, `auto`, `reload`, `preview`, `contrast`, `help`. Without fzf, bare
+  `pt` prints a cheat-sheet.
+- `bin/pwdtintii actions` / `describe-action` expose the action catalog — the
+  single source of truth the shell dispatcher re-runs, so menu and dispatch
+  cannot drift (guarded by a test).
 - `pwdtintii_pick --auto` clears a pinned family and returns to auto mode.
 - bats test harness (`tests/`) coupling the bash and zsh plugins, plus a
   Forgejo CI workflow (shellcheck, `zsh -n`, bats).
 
 ### Changed
+- The `pt` alias now points at the dispatcher (was `pwdtintii_apply`, a
+  visual no-op); `ptpick`/`ptlist`/… remain as direct accelerators.
 - Steady-state prompts (same directory) skip all subprocess work and only
   re-emit, cutting ~6 forks per prompt down to the key lookup.
+- README rewritten compact, with screenshots of the action hub and the live
+  family picker (`docs/`).
 
 ## [0.1.0] — 2026-05-26
 

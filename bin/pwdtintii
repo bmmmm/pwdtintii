@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
 # pwdtintii — CLI companion to the shell plugin.
+# Invoked by the plugin via its absolute path; the `pwdtintii` shell function
+# shadows this binary on PATH, so interactively you drive it through `pt`.
 # Subcommands:
-#   preview-family <fam>   Print colored swatches for a family (stdout, for fzf --preview)
-#   emit-family <fam>      Emit OSC 11 to /dev/tty for live preview of the brightest shade
-#   list                   Print all families
-#   palette                Print the loaded palette path
+#   preview-family <fam>    Colored swatches for a family (stdout, fzf --preview)
+#   emit-family <fam>       Emit OSC 11 to /dev/tty (live focus preview)
+#   actions                 Action catalog driving the `pt` hub menu
+#   describe-action <name>  One action's description (for the hub preview pane)
+#   list                    Print all families
+#   palette                 Print the loaded palette path
 #
 # Resolves the palette from PWDTINTII_PALETTE or ../palettes/default.tsv relative to this script.
 
@@ -12,6 +16,12 @@ set -euo pipefail
 
 SELF_DIR="$(cd "$(dirname "$0")" && pwd)"
 PALETTE="${PWDTINTII_PALETTE:-${SELF_DIR}/../palettes/default.tsv}"
+
+# Help works without a palette (it's what you read when things are misconfigured):
+# print the header doc block (lines 2..first blank) and stop before the code.
+case "${1:-}" in
+  -h|--help|help|"") sed -n '2,/^$/p' "$0"; exit 0 ;;
+esac
 
 if [[ ! -f "$PALETTE" ]]; then
   echo "pwdtintii: palette not found: $PALETTE" >&2
@@ -28,6 +38,26 @@ hex_to_rgb() {
   printf '%d %d %d\n' "0x${hex:0:2}" "0x${hex:2:2}" "0x${hex:4:2}"
 }
 
+# A full-width row painted solid in the shade color.
+_pt_fill_row() {
+  printf '\e[48;2;%s;%s;%sm%*s\e[0m\n' "$1" "$2" "$3" "$4" ''
+}
+
+# A band's middle row: ghost-grey italic "sample ghost text" on the left (so you
+# can judge autosuggestion readability on the shade), the shadeN + hex label on
+# the right, padded with the shade color across the full pane width.
+_pt_text_row() {
+  local r="$1" g="$2" b="$3" w="$4" label="$5" hex="$6"
+  local left=" sample ghost text" right="${label}  ${hex} "
+  if (( ${#left} + ${#right} + 1 > w )); then
+    left=""   # pane too narrow for the sample text — keep just the label
+  fi
+  local pad=$(( w - ${#left} - ${#right} ))
+  if (( pad < 0 )); then pad=0; fi
+  printf '\e[48;2;%s;%s;%sm\e[38;2;220;220;220m\e[3m%s\e[23m%*s\e[1;38;2;235;235;235m%s\e[0m\n' \
+    "$r" "$g" "$b" "$left" "$pad" '' "$right"
+}
+
 cmd_preview_family() {
   local fam="$1"
   local shades; shades=$(shades_for "$fam")
@@ -35,30 +65,76 @@ cmd_preview_family() {
     echo "unknown family: $fam"
     return 1
   fi
-  echo "family: $fam"
-  echo
-  local idx=0
-  for hex in $shades; do
+
+  # fzf exports the preview-pane geometry; fall back to the terminal size (or a
+  # sane default) when run standalone. Stretching the bands to FZF_PREVIEW_LINES
+  # fills the pane top-to-bottom — no scrollbar, no empty lower half.
+  local H="${FZF_PREVIEW_LINES:-${LINES:-24}}"
+  local W="${FZF_PREVIEW_COLUMNS:-${COLUMNS:-44}}"
+  if (( W < 12 )); then W=12; fi
+
+  local -a hexes
+  read -r -a hexes <<<"$shades" || true
+  local n=${#hexes[@]}
+  if (( n == 0 )); then return 0; fi
+
+  printf 'family: %s\n\n' "$fam"
+
+  # Distribute the rows below the 2-line header across n bands so the total is
+  # exactly H. Use a 1-line gap between bands when there's room to breathe.
+  local avail=$(( H - 2 ))
+  if (( avail < n )); then avail=$n; fi
+  local gap=0
+  if (( avail >= n * 4 + (n - 1) )); then gap=1; fi
+  local band_space=$(( avail - gap * (n - 1) ))
+  local base=$(( band_space / n ))
+  local extra=$(( band_space % n ))
+  if (( base < 1 )); then base=1; fi
+
+  local idx
+  for (( idx = 0; idx < n; idx++ )); do
+    local hex="${hexes[idx]}"
+    local r g b
     read -r r g b < <(hex_to_rgb "$hex")
-    # 3 lines tall block + label
-    printf '  \e[48;2;%d;%d;%dm                              \e[0m  shade%d  %s\n' "$r" "$g" "$b" "$idx" "$hex"
-    printf '  \e[48;2;%d;%d;%dm   \e[38;2;220;220;220m\e[3msample ghost text\e[0m\e[48;2;%d;%d;%dm        \e[0m\n' "$r" "$g" "$b" "$r" "$g" "$b"
-    printf '  \e[48;2;%d;%d;%dm                              \e[0m\n' "$r" "$g" "$b"
-    echo
-    idx=$((idx + 1))
+    local band_h=$base
+    if (( idx < extra )); then band_h=$(( band_h + 1 )); fi
+    local mid=$(( band_h / 2 ))
+    local row
+    for (( row = 0; row < band_h; row++ )); do
+      if (( row == mid )); then
+        _pt_text_row "$r" "$g" "$b" "$W" "shade${idx}" "$hex"
+      else
+        _pt_fill_row "$r" "$g" "$b" "$W"
+      fi
+    done
+    if (( gap == 1 && idx < n - 1 )); then echo; fi
   done
+}
+
+# Darken a #rrggbb hex toward black by PCT percent (50 = half brightness).
+# The live-preview background uses this so it sits below shade0 and all four
+# shown shades stay distinct against it.
+_pt_dim_hex() {
+  local hex="${1#\#}" pct="$2"
+  local r=$(( 16#${hex:0:2} * pct / 100 ))
+  local g=$(( 16#${hex:2:2} * pct / 100 ))
+  local b=$(( 16#${hex:4:2} * pct / 100 ))
+  printf '#%02x%02x%02x\n' "$r" "$g" "$b"
 }
 
 cmd_emit_family() {
   local fam="$1"
   local shades; shades=$(shades_for "$fam")
   [[ -z "$shades" ]] && return 0
-  # Emit the brightest shade (s2 = third) so live-preview is visible
-  local third
-  third=$(echo "$shades" | awk '{print $3}')
-  if [[ -w /dev/tty ]]; then
-    printf '\e]11;%s\a' "$third" > /dev/tty
-  fi
+  # Live preview: emit a dimmed family tone (darker than shade0) so all four
+  # real shades stand out in the preview pane, while the terminal still tints
+  # toward the family.
+  local s0; s0=$(echo "$shades" | awk '{print $1}')
+  local dim; dim=$(_pt_dim_hex "$s0" 50)
+  # Best-effort: a non-configured /dev/tty (no controlling terminal) must not
+  # abort the picker under set -e — the group redirect swallows the failed
+  # redirect's message too, which a trailing 2>/dev/null alone would not.
+  { printf '\e]11;%s\a' "$dim" > /dev/tty; } 2>/dev/null || true
 }
 
 cmd_list() {
@@ -69,15 +145,69 @@ cmd_palette() {
   echo "$PALETTE"
 }
 
+# ── Action catalog for the `pt` hub menu ─────────────────────────────────────
+# One row per action: machine-name <TAB> padded "name + gloss" shown in fzf.
+# Single source of truth — the shell dispatcher re-runs the chosen machine name
+# (field 1), so every action listed here needs a matching arm in the plugin's
+# pwdtintii() dispatcher (the test suite guards that coupling).
+cmd_actions() {
+  printf '%s\t%-9s%s\n' \
+    pick     'pick'     'pin a color family (live picker)' \
+    list     'list'     'families + current mapping' \
+    auto     'auto'     'back to directory-auto (unpin)' \
+    reload   'reload'   're-read the palette from disk' \
+    preview  'preview'  'visual dump of the whole palette' \
+    contrast 'contrast' 'WCAG contrast check of all shades'
+}
+
+# One action's help text, shown in the hub's fzf preview pane.
+cmd_describe_action() {
+  case "${1:-}" in
+    pick)
+      printf 'pick — pin a color family\n\n'
+      printf 'Opens the fzf family picker. Arrow keys preview each\n'
+      printf 'family live as the terminal background (OSC 11);\n'
+      printf 'ENTER pins it for this shell, ESC cancels.\n\n'
+      printf 'Direct: pt pick <family>   ·   alias: ptpick\n' ;;
+    list)
+      printf 'list — families + current mapping\n\n'
+      printf 'Shows the resolved key, family and shade for this\n'
+      printf 'shell, then every family with its four shades.\n\n'
+      printf 'Direct: pt list   ·   alias: ptlist\n' ;;
+    auto)
+      printf 'auto — back to directory-derived mode\n\n'
+      printf 'Clears a pinned family so the background follows the\n'
+      printf 'current directory hash again.\n\n'
+      printf 'Direct: pt auto   (same as pt pick --auto)\n' ;;
+    reload)
+      printf 'reload — re-read the palette\n\n'
+      printf 'Reloads the palette TSV (and overrides) from disk and\n'
+      printf 're-applies — run it after editing the palette.\n\n'
+      printf 'Direct: pt reload   ·   alias: ptreload\n' ;;
+    preview)
+      printf 'preview — palette dump\n\n'
+      printf 'Prints every family with its four shades and sample\n'
+      printf 'text, so you can eyeball the whole palette at once.\n\n'
+      printf 'Direct: pt preview   ·   alias: ptpreview\n' ;;
+    contrast)
+      printf 'contrast — WCAG contrast check\n\n'
+      printf 'Scores each shade against common foregrounds and\n'
+      printf 'flags combos below the WCAG body/large-text limits.\n\n'
+      printf 'Direct: pt contrast   ·   alias: ptcontrast\n' ;;
+    *)
+      printf '%s\n\n(no description)\n' "${1:-}" ;;
+  esac
+}
+
 cmd=${1:-}
 shift || true
 case "$cmd" in
-  preview-family) cmd_preview_family "${1:-}" ;;
-  emit-family)    cmd_emit_family "${1:-}" ;;
-  list)           cmd_list ;;
-  palette)        cmd_palette ;;
-  -h|--help|help|"")
-    sed -n '2,11p' "$0" ;;
+  preview-family)   cmd_preview_family "${1:-}" ;;
+  emit-family)      cmd_emit_family "${1:-}" ;;
+  actions)          cmd_actions ;;
+  describe-action)  cmd_describe_action "${1:-}" ;;
+  list)             cmd_list ;;
+  palette)          cmd_palette ;;
   *)
     echo "pwdtintii: unknown subcommand: $cmd" >&2
     exit 1

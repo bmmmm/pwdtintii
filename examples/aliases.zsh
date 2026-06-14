@@ -4,7 +4,9 @@
 #
 # If any of these names collide with your own setup, edit before sourcing.
 
-alias pt='pwdtintii_apply'
+# `pt` is the entry point: bare `pt` opens the fzf action menu, `pt <cmd>`
+# dispatches (pick / list / auto / reload / preview / contrast / help).
+alias pt='pwdtintii'
 alias ptpick='pwdtintii_pick'
 alias ptlist='pwdtintii_list'
 alias ptreload='pwdtintii_reload'

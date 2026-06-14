@@ -1,164 +1,101 @@
 # pwdtintii
 
-**Directory-derived terminal background tinting.** Every directory you `cd`
-into gets its own background color — deterministically chosen from a 37-family
-palette, with a different shade per split/pane in the same directory. No
-daemon, no persisted state, PID-tracked, terminal-agnostic via OSC 11.
+**Directory-derived terminal background tinting.** `cd` into a directory and the
+background shifts to a color derived from it; every split/pane in the same dir
+gets a distinct shade. Deterministic, no daemon, no persisted state,
+terminal-agnostic via OSC 11.
 
-Status: 0.1.1 · private alpha · works on zsh + bash 4+
+Status: 0.1.1 · alpha · zsh + bash 4+
 
-```
-~/ops              → slate (cool gray-blue)
-~/projects/app-a   → rust  (warm earth)
-~/projects/app-b   → teal  (cool muted)
-                     └── split #2 of app-b → teal, lighter shade
-```
+![pt pick — live family picker with per-shade preview](docs/picker.png)
 
 ## Why
 
-Reading paths from a prompt is slow. Color is instant. After a few days you
-just know which workspace you're in by the background tint, and which split
-inside it by the shade. Splits in the same repo stay visually related;
-unrelated repos stay visually distinct.
-
-This is not a theme. It's per-workspace identity color, sitting underneath
-whatever theme you already use.
-
-## Requirements
-
-- A terminal that honors OSC 11 (tested with Ghostty, also works in Alacritty,
-  WezTerm, kitty, iTerm2, modern xterm).
-- **zsh**, or **bash 4+** (Linux default, macOS needs `brew install bash`).
-- `shasum` (macOS) or `sha1sum` (Linux) — for the dir-key hash; detected at
-  load in both shells, fails loudly if neither is present.
-- Optional: `fzf` — for interactive `pwdtintii_pick`. Falls back to a numbered
-  menu if missing.
+Reading the path off a prompt is slow; color is instant. After a few days you
+know the workspace by its tint and the split by its shade — related splits stay
+visually related, unrelated repos stay distinct. It's per-workspace identity
+color underneath whatever theme you run, not a theme itself.
 
 ## Install
+
+Needs a terminal that honors OSC 11 (Ghostty, kitty, WezTerm, Alacritty,
+iTerm2, modern xterm), **zsh** or **bash 4+**, and `shasum`/`sha1sum`. `fzf` is
+optional but powers the menus below (both degrade to a printed list without it).
 
 ```sh
 git clone https://forgejo.example.com/<owner>/pwdtintii ~/.local/share/pwdtintii
 ```
 
-### zsh
-
-Add to `~/.zshrc`:
+**zsh** — add to `~/.zshrc`:
 
 ```zsh
 source ~/.local/share/pwdtintii/pwdtintii.plugin.zsh
-# Optional short aliases:
-# source ~/.local/share/pwdtintii/examples/aliases.zsh
+source ~/.local/share/pwdtintii/examples/aliases.zsh   # optional: pt + short aliases
 ```
 
-### bash
-
-Add to `~/.bashrc` (after the `[ -z "$PS1" ] && return` line if present):
+**bash** — add to `~/.bashrc`:
 
 ```bash
 source ~/.local/share/pwdtintii/pwdtintii.plugin.bash
-# source ~/.local/share/pwdtintii/examples/aliases.bash
+source ~/.local/share/pwdtintii/examples/aliases.bash  # optional
 ```
 
-Open a fresh shell. Background tint should kick in on the first prompt.
+Open a fresh shell — the tint kicks in on the first prompt.
 
 ## Usage
 
-| Function          | What it does |
-|-------------------|---|
-| `pwdtintii_apply`      | Re-apply background color (also runs automatically on each prompt) |
-| `pwdtintii_pick`       | Pin a family for this shell. No arg → fzf picker with live preview |
-| `pwdtintii_pick blue`  | Pin the `blue` family directly |
-| `pwdtintii_pick --auto`| Clear the pin, return to dir-derived auto mode |
-| `pwdtintii_list`       | Show the current key, family, shade, plus all available families |
-| `pwdtintii_reload`     | Re-load the palette TSV |
+`pt` is the entry point. Run it bare for an fzf menu of every action, each with
+a live description in the preview pane; pick one and it runs. Display-only
+actions drop you back at the menu — ESC quits to the shell.
 
-With `aliases.zsh` / `aliases.bash` sourced, you get `pt`, `ptpick`, `ptlist`,
-`ptreload`, `ptpreview`, `ptcontrast`.
+![pt — the action hub](docs/hub.png)
+
+| Command            | What it does |
+|--------------------|---|
+| `pt`               | the action menu |
+| `pt pick [family]` | pin a family — fzf picker with live preview; a name pins directly |
+| `pt auto`          | unpin, back to directory-derived mode |
+| `pt list`          | current key / family / shade, plus all families |
+| `pt reload`        | re-read the palette TSV |
+| `pt preview`       | dump the whole palette |
+| `pt contrast`      | WCAG contrast check of every shade |
+| `pt help`          | this overview |
+
+Short aliases stay as direct accelerators: `ptpick ptlist ptreload ptpreview
+ptcontrast`. Each command also maps to a `pwdtintii_*` function callable without
+the aliases.
 
 ## Configuration
 
-Set env vars before sourcing the plugin:
+Set before sourcing the plugin:
 
-```sh
-# Use a custom palette
-export PWDTINTII_PALETTE=~/.config/pwdtintii/my-palette.tsv
+| Variable | Purpose |
+|----------|---|
+| `PWDTINTII_PALETTE`        | path to a custom palette TSV |
+| `PWDTINTII_OVERRIDES_FILE` | TSV pinning `basename<TAB>family` (beats the hash) |
+| `PWDTINTII_SHADES_DIR`     | per-dir PID-registry location |
+| `PWDTINTII_DIR_KEY_FN`     | function resolving `$PWD` → key (default: git-root, else `~/<top>`) |
 
-# Pin specific repos to specific families (overrides the hash)
-export PWDTINTII_OVERRIDES_FILE=~/.config/pwdtintii/overrides.tsv
-
-# Where to keep the per-dir PID registry (for shade tracking)
-export PWDTINTII_SHADES_DIR=~/.cache/pwdtintii/shades
-
-# Custom function name to resolve $PWD → key (default: git-root or ~/<top>)
-export PWDTINTII_DIR_KEY_FN=my_key_resolver
-```
-
-The default key resolver walks up to find a `.git` dir; failing that, it uses
-the first path component under `$HOME`. Override with `PWDTINTII_DIR_KEY_FN`
-if you want a different strategy (e.g. per-tmux-session, per-host).
-
-## Palette
-
-The default palette ships with **37 families × 4 shades each**, grouped into:
-cool/saturated (blue, green, teal, purple, yellow, orange, pink),
-warm/earthy (plum, mahogany, rust, terracotta, wine, mauve),
-calm blues (navy, midnight, slate, denim, steel, indigo),
-forest greens (forest, moss, sage, evergreen, olive-dark),
-deep teals (petrol, peacock, deepteal),
-muted purples (eggplant, royal, violet-dark, lavender-dark),
-warm-earth (amber, bronze, ochre),
-tinted greys (graphite, charcoal, gunmetal).
-
-See `palettes/README.md` for the format.
-
-Preview every family × shade in your terminal:
-
-```sh
-scripts/preview.sh
-```
-
-WCAG contrast check vs common foreground colors:
-
-```sh
-scripts/contrast-check.sh
-```
+The palette is a TSV of `family` + four shades; 37 families ship by default. See
+[`palettes/README.md`](palettes/README.md) for the format.
 
 ## How it works
 
-1. **Dir key** — resolve `$PWD` to a stable identifier (git-root or first
-   path segment under `$HOME`).
-2. **Family** — `shasum(key) % family_count` → deterministic family.
-3. **Shade** — per-key registry at `$PWDTINTII_SHADES_DIR/<keyhash>.tsv` holds
-   `pid<TAB>shade_idx<TAB>timestamp` lines. Each new shell picks the lowest
-   unused shade for its dir; dead PIDs are GC'd. The read-modify-write is
-   guarded by a `mkdir` lock (fail-open) so shells starting at the same time
-   don't collide. On `cd`, the shell releases its old key and picks a fresh
-   shade for the new key. Steady-state prompts (same dir) only re-emit — no
-   subprocess work.
-4. **Emit** — `printf '\e]11;<hex>\a'` (OSC 11) sets the terminal background.
-5. **Hooks** — `precmd` (zsh) or `PROMPT_COMMAND` (bash) re-applies on every
-   prompt. `zshexit` / `trap EXIT` releases the registry entry.
+`$PWD` → a stable key (git-root, else first segment under `$HOME`) →
+`shasum(key) % families` picks the family → a per-key PID registry hands each
+shell a distinct shade → `printf '\e]11;<hex>\a'` sets the background. It's
+re-applied from `precmd` (zsh) / `PROMPT_COMMAND` (bash) and released on exit;
+steady-state prompts in the same dir only re-emit, no subprocess work.
 
 ## Development
 
-The bash and zsh plugins are kept behaviourally in lockstep (same key, family,
-and registry hash for any directory). A bats suite enforces that:
-
 ```sh
-tests/run.sh            # or: bats tests/
+tests/run.sh        # bats suite; bash and zsh kept behaviourally in lockstep
 ```
 
-On macOS the default `/bin/bash` is 3.2; point the suite at a newer one with
+macOS `/bin/bash` is 3.2 — point the suite at a newer one with
 `PWDTINTII_TEST_BASH=/opt/homebrew/bin/bash tests/run.sh`. CI runs shellcheck,
-a `zsh -n` syntax check, and the bats suite on every push.
-
-## Roadmap
-
-- [ ] fish shell support
-- [ ] tmux pane-background integration
-- [ ] Light-theme palette variants
-- [ ] Per-host palette switching (via `PWDTINTII_DIR_KEY_FN`)
-- [ ] Demo GIF
+`zsh -n`, and bats on every push.
 
 ## License
 

@@ -257,10 +257,10 @@ _pwdtintii_pick_interactive() {
   printf '%s\n' "${_pwdtintii_families[@]}" | \
     fzf \
       --prompt='pick family > ' \
-      --height=40% \
+      --height=100% \
       --reverse \
       --preview="$_pwdtintii_self/bin/pwdtintii preview-family {}" \
-      --preview-window=right:50%:wrap \
+      --preview-window=right:50%:nowrap \
       --bind="change:first" \
       --bind="focus:execute-silent($_pwdtintii_self/bin/pwdtintii emit-family {})" \
       --header="↑↓ navigate · ENTER pin · ESC cancel"
@@ -313,6 +313,94 @@ pwdtintii_reload() {
   _PWDTINTII_FORCE_REAPPLY=1
   pwdtintii_apply
   echo "pwdtintii: reloaded (${#_pwdtintii_families[@]} families)"
+}
+
+# ── Public: the `pt` entry point ─────────────────────────────────────────────
+# Bare `pwdtintii` opens the fzf action hub (printed cheat-sheet without fzf);
+# `pwdtintii <cmd>` dispatches. The hub re-runs the chosen action through this
+# same dispatcher, so the action catalog (bin/pwdtintii actions) and the case
+# arms below stay in lockstep.
+pwdtintii() {
+  local sub="${1:-}"
+  case "$sub" in
+    "")
+      if command -v fzf >/dev/null 2>&1; then
+        _pwdtintii_hub
+      else
+        _pwdtintii_help
+      fi
+      ;;
+    pick)            shift; pwdtintii_pick "$@" ;;
+    list|ls)         pwdtintii_list ;;
+    apply)           pwdtintii_apply ;;
+    auto|off|unpin)  pwdtintii_pick --auto ;;
+    reload)          pwdtintii_reload ;;
+    preview)         "${_pwdtintii_self}/scripts/preview.sh" ;;
+    contrast)        "${_pwdtintii_self}/scripts/contrast-check.sh" ;;
+    help|-h|--help)  _pwdtintii_help ;;
+    *)
+      echo "pwdtintii: unknown command: $sub" >&2
+      echo "try: pwdtintii help" >&2
+      return 1 ;;
+  esac
+}
+
+# fzf hub: list every action, preview its description, echo the chosen machine
+# name (field 1). Cancel/empty → no output, the caller returns to the prompt.
+_pwdtintii_menu_pick() {
+  "${_pwdtintii_self}/bin/pwdtintii" actions \
+    | fzf \
+        --prompt='pwdtintii > ' \
+        --height=100% \
+        --reverse \
+        --delimiter='\t' \
+        --with-nth=2 \
+        --preview="${_pwdtintii_self}/bin/pwdtintii describe-action {1}" \
+        --preview-window=right:55%:wrap \
+        --header="now: ${_PWDTINTII_FAMILY:-auto} ${_PWDTINTII_SHADE_IDX:-?} · ENTER run · ESC quit" \
+    | cut -f1
+}
+
+# The hub loop: open the action menu, run the choice, come back to the menu.
+# Display-only actions pause first so their output stays readable before the
+# menu redraws over it. ESC at the menu (empty pick) — or q at a pause — exits.
+_pwdtintii_hub() {
+  local action
+  while action=$(_pwdtintii_menu_pick); [[ -n "$action" ]]; do
+    pwdtintii "$action"
+    case "$action" in
+      list|preview|contrast) _pwdtintii_pause || break ;;
+    esac
+  done
+}
+
+# Hold a display action's output on screen until a keypress: any key returns to
+# the hub, q or ESC quits it (rc 1). Reads from /dev/tty so a redirected stdin
+# can't swallow the keypress.
+_pwdtintii_pause() {
+  printf '\n  \e[2m— any key: back to menu · q: quit —\e[0m ' > /dev/tty
+  local k
+  read -rsn1 k < /dev/tty
+  printf '\n' > /dev/tty
+  [[ "$k" == q || "$k" == $'\e' ]] && return 1
+  return 0
+}
+
+# Printed cheat-sheet: the no-fzf fallback for `pt`, and `pt help`.
+_pwdtintii_help() {
+  echo "pwdtintii — directory-derived terminal tinting"
+  echo "  now: ${_PWDTINTII_FAMILY:-?} · shade ${_PWDTINTII_SHADE_IDX:-?}"
+  echo
+  echo "  pt                 open the action menu (this list without fzf)"
+  echo "  pt pick [family]   pin a color family (live picker)"
+  echo "  pt list            families + current mapping"
+  echo "  pt auto            back to directory-derived auto (unpin)"
+  echo "  pt reload          re-read the palette TSV"
+  echo "  pt preview         visual dump of the whole palette"
+  echo "  pt contrast        WCAG contrast check of all shades"
+  echo "  pt help            this overview"
+  echo
+  echo "  aliases: ptpick · ptlist · ptreload · ptpreview · ptcontrast"
 }
 
 # ── Hooks ────────────────────────────────────────────────────────────────────

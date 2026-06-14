@@ -7,23 +7,25 @@ Entry point for a fresh Claude session. Read this first, then pick a section.
 0.1.1 — bug-fix pass over the 0.1.0 scaffold. Plugin sources, palette, fzf
 picker, contrast check, README, LICENSE done; bash/zsh drift bugs fixed and
 locked down with a bats suite + Forgejo CI (see CHANGELOG 0.1.1).
-Dotfiles still need migration to source the plugin instead of inlining.
+Dotfiles already source the plugin (`~/.zshrc` → `~/dotfiles/zshrc`).
 
 ## Next session — start here
 
 1. **Verify in a fresh Ghostty window**
-   - Open a new tab in `~/ops`, expect tint matching `pwdtintii_list` output.
-   - `cd ~/offline_coding/dotfiles` → tint should change at next prompt.
+   - Open a new tab in `~/ops`, expect tint matching `pt list` output.
+   - `cd ~/dotfiles` → tint should change at next prompt.
    - `cmd+d` (split) → same family, different shade.
-   - Run `pwdtintii_pick` → fzf opens, arrow keys preview live, ENTER pins.
-   - Run `pwdtintii_pick blue` → directly pins blue.
+   - Run `pt` → fzf action menu opens; arrow keys show each action's
+     description; pick `pick` → family picker opens.
+   - In the family picker: arrow keys preview live, all **four** shades stay
+     distinct against the dimmed background, ENTER pins.
+   - Back behaviour: from the menu pick `list` → it prints, a keypress returns
+     you to the menu; ESC in the family picker steps back to the menu; ESC at
+     the menu quits to the shell.
+   - Run `pt pick blue` → directly pins blue.
+   - Run `pt help` → command overview prints.
 
-2. **Migrate `~/offline_coding/dotfiles/zshrc`** if not already done:
-   - Remove the inline `_gbg_*` block (lines ~104–250).
-   - Replace with: `source ~/offline_coding/pwdtintii/pwdtintii.plugin.zsh`.
-   - Optionally: `source ~/offline_coding/pwdtintii/examples/aliases.zsh`.
-
-3. **bash-side verify** (Linux later or via `brew install bash` on Mac):
+2. **bash-side verify** (Linux later or via `brew install bash` on Mac):
    - `bash --rcfile <(echo "source ~/offline_coding/pwdtintii/pwdtintii.plugin.bash")`
    - Confirm `pwdtintii_list` works, OSC 11 emits on prompt.
 

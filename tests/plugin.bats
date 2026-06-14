@@ -135,3 +135,59 @@ teardown() { teardown_sandbox; }
   '
   [ "$output" = "CLEAN" ]
 }
+
+# ── pt dispatcher ────────────────────────────────────────────────────────────
+
+@test "dispatcher: help lists the pt subcommands" {
+  run bash_eval / / 'pwdtintii help'
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"pt pick"* ]]
+  [[ "$output" == *"pt contrast"* ]]
+}
+
+@test "dispatcher: unknown command fails with guidance" {
+  run bash_eval / / 'pwdtintii frobnicate 2>&1; echo "rc=$?"'
+  [[ "$output" == *"unknown command"* ]]
+  [[ "$output" == *"rc=1"* ]]
+}
+
+@test "dispatcher: a bare subcommand routes to its function" {
+  run bash_eval / / 'pwdtintii list'
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"families ("* ]]
+}
+
+@test "every hub action has a dispatch arm (menu↔dispatch parity)" {
+  # bin/pwdtintii actions is the single source of truth: each catalog row's
+  # machine name (field 1) is re-run through pwdtintii(). Drive every action
+  # through the dispatcher and assert none falls through to the unknown-command
+  # arm — that is the failure mode if a menu row gains no matching case arm.
+  # fzf is stubbed to exit instantly so the 'pick' action can't open a picker.
+  local stub="$TEST_HOME/bin"; mkdir -p "$stub"
+  printf '%s\n' '#!/bin/sh' 'exit 0' > "$stub/fzf"; chmod +x "$stub/fzf"
+  local n out
+  for n in $("$REPO_ROOT/bin/pwdtintii" actions | cut -f1); do
+    out=$(PT_REPO="$REPO_ROOT" PT_PAL="$PWDTINTII_PALETTE" PT_SH="$PWDTINTII_SHADES_DIR" PT_STUB="$stub" \
+      "$BASH4" -c '
+        export PWDTINTII_PALETTE="$PT_PAL" PWDTINTII_SHADES_DIR="$PT_SH" PATH="$PT_STUB:$PATH"
+        source "$PT_REPO/pwdtintii.plugin.bash" 2>/dev/null
+        pwdtintii "'"$n"'" </dev/null 2>&1
+        :') || true
+    [[ "$out" != *"unknown command"* ]] || { echo "no dispatch arm for action: $n"; return 1; }
+  done
+}
+
+@test "hub: runs the picked action, loops, then exits on an empty pick" {
+  # Drive _pwdtintii_hub with a stubbed menu (no fzf/tty needed): the first
+  # pick is 'list', the second is empty to end the loop; pause is stubbed to
+  # continue. The picked action must actually run (list prints "families (").
+  run bash_eval / / '
+    flag="$PWDTINTII_SHADES_DIR/hub.flag"
+    mkdir -p "$PWDTINTII_SHADES_DIR"
+    _pwdtintii_menu_pick() { if [[ -e "$flag" ]]; then echo ""; else : > "$flag"; echo list; fi; }
+    _pwdtintii_pause() { return 0; }
+    _pwdtintii_hub
+  '
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"families ("* ]]
+}

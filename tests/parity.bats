@@ -70,3 +70,15 @@ teardown() { teardown_sandbox; }
     HOME=/testhome; PWD=/; pwdtintii_apply' 2>&1 >/dev/null)"
   [ -z "$err" ]
 }
+
+# The `pt` dispatcher lives in both plugins — keep its help text and error
+# behaviour identical so `pt` works the same regardless of shell.
+@test "dispatcher help text is identical in bash and zsh" {
+  [ "$(bash_eval /testhome / 'pwdtintii help')" = "$(zsh_eval /testhome / 'pwdtintii help')" ]
+}
+
+@test "dispatcher rejects an unknown command in zsh" {
+  run zsh_eval / / 'pwdtintii frobnicate 2>&1; echo "rc=$?"'
+  [[ "$output" == *"unknown command"* ]]
+  [[ "$output" == *"rc=1"* ]]
+}

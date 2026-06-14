@@ -30,10 +30,53 @@ teardown() { teardown_sandbox; }
   [[ "$output" == *"family: blue"* ]]
 }
 
+@test "preview-family fills the pane to FZF_PREVIEW_LINES (no empty lower half)" {
+  run env FZF_PREVIEW_LINES=30 FZF_PREVIEW_COLUMNS=50 "$CLI" preview-family blue
+  [ "$status" -eq 0 ]
+  # Count raw rows with wc -l: bats' $lines array drops the blank header/gap
+  # rows, so the bands stretching to fill ~30 rows (vs a fixed ~18 that left the
+  # lower half empty) only shows up in the raw line count.
+  local rows; rows=$(printf '%s\n' "$output" | wc -l | tr -d ' ')
+  [ "$rows" -ge 28 ]
+  [ "$rows" -le 30 ]
+}
+
 @test "preview-family fails on an unknown family" {
   run "$CLI" preview-family nosuchfamily
   [ "$status" -eq 1 ]
   [[ "$output" == *"unknown family"* ]]
+}
+
+@test "live-preview dim tone is darker than shade0" {
+  # Unit-test the dimming used for the focus background: shade0 #001f70 at 50%.
+  source <(sed -n '/^_pt_dim_hex()/,/^}/p' "$CLI")
+  run _pt_dim_hex "#001f70" 50
+  [ "$status" -eq 0 ]
+  [ "$output" = "#000f38" ]
+}
+
+@test "actions lists the six hub actions, machine name in field 1" {
+  run "$CLI" actions
+  [ "$status" -eq 0 ]
+  local rows; rows=$(printf '%s\n' "$output" | wc -l | tr -d ' ')
+  [ "$rows" -eq 6 ]
+  # Field 1 (tab-delimited) is the machine name the shell dispatcher re-runs;
+  # pin the catalog so any add/remove forces a deliberate test update.
+  local names; names=$(printf '%s\n' "$output" | cut -f1 | tr '\n' ' ')
+  [ "$names" = "pick list auto reload preview contrast " ]
+}
+
+@test "describe-action renders a known action" {
+  run "$CLI" describe-action pick
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"pin a color family"* ]]
+  [[ "$output" == *"ptpick"* ]]
+}
+
+@test "describe-action is graceful on an unknown action" {
+  run "$CLI" describe-action zzz
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"no description"* ]]
 }
 
 @test "unknown subcommand exits non-zero" {
