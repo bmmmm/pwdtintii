@@ -42,6 +42,26 @@ source ~/.local/share/pwdtintii/examples/aliases.bash  # optional
 
 Open a fresh shell — the tint kicks in on the first prompt.
 
+### Via a plugin manager
+
+These source the zsh plugin automatically; bash users use the manual `source` line above.
+
+**oh-my-zsh**
+```zsh
+git clone https://github.com/bmmmm/pwdtintii $ZSH_CUSTOM/plugins/pwdtintii
+```
+Then add `pwdtintii` to the `plugins=(...)` array in `~/.zshrc`.
+
+**zinit**
+```zsh
+zinit light bmmmm/pwdtintii
+```
+
+**antidote** — add to `~/.zsh_plugins.txt`:
+```
+bmmmm/pwdtintii
+```
+
 ## Usage
 
 `pt` is the entry point. Run it bare for an fzf menu of every action, each with
