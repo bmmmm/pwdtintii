@@ -231,7 +231,9 @@ pwdtintii_apply() {
 pwdtintii_pick() {
   local family="$1"
   unset _PWDTINTII_DISABLED
-  if [[ "$family" == "--auto" || "$family" == "-" ]]; then
+  # Accept bare `auto` too, not just `--auto`/`-`: `pt pick auto` is the natural
+  # conflation of `pt auto` and `pt pick <family>`, and no family is named auto.
+  if [[ "$family" == "--auto" || "$family" == "auto" || "$family" == "-" ]]; then
     unset _PWDTINTII_FORCED_FAMILY
     _pwdtintii_restore
     return 0

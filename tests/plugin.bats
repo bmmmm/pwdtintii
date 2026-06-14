@@ -231,6 +231,17 @@ teardown() { teardown_sandbox; }
   [[ "$output" == *"family=blue"* ]]
 }
 
+@test "pick treats bare 'auto' as unpin, not a family lookup" {
+  run bash_eval "$TEST_HOME" "$TEST_HOME" '
+    pwdtintii_pick blue >/dev/null 2>&1          # pin a family first
+    pwdtintii_pick auto >/dev/null 2>&1; rc=$?   # `pt pick auto` must unpin
+    printf "forced=[%s] rc=%s\n" "${_PWDTINTII_FORCED_FAMILY:-}" "$rc"
+  '
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"forced=[]"* ]]
+  [[ "$output" == *"rc=0"* ]]
+}
+
 @test "doctor reports the setup and skips the live query off-tty" {
   run bash_eval / / 'pwdtintii doctor'
   [ "$status" -eq 0 ]
