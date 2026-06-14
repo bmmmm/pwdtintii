@@ -4,15 +4,19 @@ Entry point for a fresh Claude session. Read this first, then pick a section.
 
 ## Status
 
-0.2.0 — feature release on the 0.1.0 scaffold: the `pt` action hub (looping
-menu, back navigation, stale-shell detection), full-height dimmed picker
-preview, plus the 0.1.x bash/zsh drift fixes — locked down with a 48-test bats
-suite + Forgejo CI (see CHANGELOG 0.2.0). Still alpha. Dotfiles already source
-the plugin (`~/.zshrc`).
+0.2.0 — released 2026-06-14 (`v0.2.0`). The `pt` action hub (looping menu, back
+navigation, stale-shell detection), full-height dimmed picker preview, plus the
+0.1.x bash/zsh drift fixes — locked down with a 48-test bats suite + Forgejo CI
+(see CHANGELOG). Still alpha. Dotfiles already source the plugin (`~/.zshrc`).
 
 ## Next session — start here
 
-1. **Verify in a fresh Ghostty window**
+0.2.0 is shipped (`v0.2.0`). Next: pick from **Open work** below. Re-run
+`tests/run.sh` and the smoke test below before any future release.
+
+## Release smoke test (fresh Ghostty)
+
+1. **Tinting + the `pt` hub**
    - Open a new tab in `~/ops`, expect tint matching `pt list` output.
    - `cd ~/dotfiles` → tint should change at next prompt.
    - `cmd+d` (split) → same family, different shade.
@@ -36,7 +40,6 @@ the plugin (`~/.zshrc`).
 ## Open work (small)
 
 - [ ] Demo GIF for README (asciinema → agg, or screen capture)
-- [ ] Tag `v0.2.0` after Ghostty verification passes
 - [ ] Add to skills-inventory if relevant
 - [ ] Eventually: GitHub mirror via `/new-mirrored-repo` (currently private only)
 
