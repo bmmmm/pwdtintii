@@ -78,10 +78,12 @@ or open a new one.
 | `pt`               | the action menu |
 | `pt pick [family]` | pin a family — fzf picker with live preview; a name pins directly |
 | `pt auto`          | unpin, back to directory-derived mode |
+| `pt off`           | stop tinting and reset the terminal background (OSC 111) |
 | `pt list`          | current key / family / shade, plus all families |
 | `pt reload`        | re-read the palette TSV |
 | `pt preview`       | dump the whole palette |
 | `pt contrast`      | WCAG contrast check of every shade |
+| `pt doctor`        | check OSC 11 support, fzf, and the palette |
 | `pt help`          | this overview |
 
 Short aliases stay as direct accelerators: `ptpick ptlist ptreload ptpreview
