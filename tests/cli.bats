@@ -55,6 +55,35 @@ teardown() { teardown_sandbox; }
   [ "$output" = "#000f38" ]
 }
 
+@test "preview text tone flips to dark on a light band, light on a dark band" {
+  # The picker preview must read on the light palette too: a pale band gets a
+  # dim-dark ghost + near-black label, a dark band keeps the light tones (so the
+  # default palette is byte-identical — no regression).
+  source <(sed -n '/^_pt_text_fg()/,/^}/p' "$CLI")
+  run _pt_text_fg 229 234 246   # a pale light-palette shade (lum ~233)
+  [ "$status" -eq 0 ]
+  [ "$output" = "72 72 72 16 16 16" ]
+  run _pt_text_fg 0 31 112      # blue shade0 from the dark default (lum ~26)
+  [ "$status" -eq 0 ]
+  [ "$output" = "220 220 220 235 235 235" ]
+}
+
+@test "preview-family uses high-contrast dark text on the light palette" {
+  # End-to-end through the real renderer: on the light palette the label row
+  # carries the near-black SGR, never the dark-palette near-white.
+  run env PWDTINTII_PALETTE="$REPO_ROOT/palettes/light.tsv" "$CLI" preview-family blue
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"38;2;16;16;16"* ]]
+  [[ "$output" != *"38;2;235;235;235"* ]]
+}
+
+@test "preview-family keeps light text on the dark default palette" {
+  run "$CLI" preview-family blue
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"38;2;235;235;235"* ]]
+  [[ "$output" != *"38;2;16;16;16"* ]]
+}
+
 @test "actions lists the seven hub actions, machine name in field 1" {
   run "$CLI" actions
   [ "$status" -eq 0 ]

@@ -51,6 +51,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   luminance, or forced with a `dark`/`light` second argument). `scripts/preview.sh`
   shows each shade against both a light and a dark text sample, so the dump is
   legible whichever palette it dumps.
+- The `pt pick` fzf preview pane is now high-contrast on every shade: the sample
+  text and the shadeN/hex label pick a dark tone on a light band and a light tone
+  on a dark one (per-band perceived luminance), so the labels stay legible on the
+  pale `light.tsv` swatches reached via `ctrl-t`, not just on the dark default.
 
 ### Fixed
 - Palette loading validates that each family has four `#rrggbb` shades and skips

@@ -43,9 +43,27 @@ _pt_fill_row() {
   printf '\e[48;2;%s;%s;%sm%*s\e[0m\n' "$1" "$2" "$3" "$4" ''
 }
 
-# A band's middle row: ghost-grey italic "sample ghost text" on the left (so you
-# can judge autosuggestion readability on the shade), the shadeN + hex label on
-# the right, padded with the shade color across the full pane width.
+# Readable foreground tones for text painted on a band of color (r,g,b). Echoes
+# "ghost_r ghost_g ghost_b  label_r label_g label_b": a muted tone for the
+# ghost-text sample (it gauges dim-autosuggestion readability, so it stays dim —
+# just dark-on-light instead of light-on-dark) and a strong tone for the label.
+# Perceived luminance (integer YIQ): >= 128 is a light band → flip to dark text.
+# The shipped palettes split cleanly (dark tops at lum 113, light bottoms at
+# 164); being per-band, this also covers a stray light shade in a dark palette.
+_pt_text_fg() {
+  local r="$1" g="$2" b="$3"
+  if (( (r * 299 + g * 587 + b * 114) / 1000 >= 128 )); then
+    printf '72 72 72 16 16 16\n'        # light band: dim-dark ghost + near-black label
+  else
+    printf '220 220 220 235 235 235\n'  # dark band: dim-light ghost + near-white label
+  fi
+}
+
+# A band's middle row: ghost italic "sample ghost text" on the left (so you can
+# judge autosuggestion readability on the shade), the shadeN + hex label on the
+# right, padded with the shade color across the full pane width. Both text tones
+# track the band's luminance (see _pt_text_fg) so they stay legible on a pale
+# light-palette shade, not only on the dark default.
 _pt_text_row() {
   local r="$1" g="$2" b="$3" w="$4" label="$5" hex="$6"
   local left=" sample ghost text" right="${label}  ${hex} "
@@ -54,8 +72,10 @@ _pt_text_row() {
   fi
   local pad=$(( w - ${#left} - ${#right} ))
   if (( pad < 0 )); then pad=0; fi
-  printf '\e[48;2;%s;%s;%sm\e[38;2;220;220;220m\e[3m%s\e[23m%*s\e[1;38;2;235;235;235m%s\e[0m\n' \
-    "$r" "$g" "$b" "$left" "$pad" '' "$right"
+  local gr gg gb lr lg lb
+  read -r gr gg gb lr lg lb < <(_pt_text_fg "$r" "$g" "$b")
+  printf '\e[48;2;%s;%s;%sm\e[38;2;%s;%s;%sm\e[3m%s\e[23m%*s\e[1;38;2;%s;%s;%sm%s\e[0m\n' \
+    "$r" "$g" "$b" "$gr" "$gg" "$gb" "$left" "$pad" '' "$lr" "$lg" "$lb" "$right"
 }
 
 cmd_preview_family() {
