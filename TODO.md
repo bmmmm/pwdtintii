@@ -17,8 +17,10 @@ since (see CHANGELOG): GitHub mirror, macOS CI matrix + release job, `pt off`
 validation, plugin-manager install docs, `pt pick auto` unpin fix, a
 light-terminal-theme palette (`palettes/light.tsv` + `gen-light-palette.py`,
 theme-aware contrast/preview), a dark/light group toggle in the `pt pick`
-picker (ctrl-t), and a self-reloading `pt` (auto re-source when the plugin
-file changed on disk, so there is no manual re-source step). Suite is 72 green.
+picker (ctrl-t), a self-reloading `pt` (auto re-source when the plugin file
+changed on disk, so there is no manual re-source step), and a high-contrast
+picker preview (the fzf preview pane flips to dark text on pale light-palette
+swatches). Suite is 75 green.
 
 **Verify in Ghostty before release** (the sandbox can't run a live tty): the
 `pt pick` **ctrl-t dark/light toggle is new and unverified** — open `pt pick`,
@@ -39,7 +41,9 @@ release job, after a final `tests/run.sh`.
    - In the family picker: arrow keys preview live, all **four** shades stay
      distinct against the dimmed background, ENTER pins.
    - ctrl-t flips the dark↔light group (prompt + swatches change); ENTER from
-     the light group switches the shell to light and pins.
+     the light group switches the shell to light and pins. On the light group
+     the preview-pane labels read as dark text on the pale swatches (legible),
+     not washed-out light text.
    - Back behaviour: from the menu pick `list` → it prints, then a keypress
      returns you to the menu. q quits the hub; arrow keys / ESC / letters all
      return to the menu (no stray `[A` in the search). ESC steps back one level:
@@ -71,11 +75,14 @@ release job, after a final `tests/run.sh`.
       `default.tsv` by `scripts/gen-light-palette.py` (same families/order, pale
       WCAG-readable shades). contrast-check + preview are now theme-aware, and
       `pt pick` has a ctrl-t dark/light group toggle. ← erledigt 2026-06-14
-  - [ ] Follow-up (needs real-terminal verify): the live fzf picker preview
-        (`bin/pwdtintii cmd_preview_family` / focus tone) still renders light
-        text — now reachable via the ctrl-t toggle, so on the light group the
-        preview pane reads poorly though the actual tint is correct. Make the
-        picker preview theme-aware too.
+  - [x] Picker preview pane is now high-contrast: text/label tones flip per band
+        by perceived luminance (`_pt_text_fg` in `bin/pwdtintii`), dark text on
+        pale `light.tsv` swatches. ← erledigt 2026-06-15
+    - [ ] Minor, optional: the live *focus tone* (`emit-family`) still dims
+          shade0 by 50% for the hover background, which on a light terminal theme
+          briefly darkens the real terminal under your (dark) text while you
+          arrow through the picker. The preview pane is the readable surface, so
+          this is cosmetic — only worth a theme-aware dim if it actually annoys.
 
 ## Design decisions already made
 
