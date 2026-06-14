@@ -14,12 +14,14 @@ navigation, stale-shell detection), full-height dimmed picker preview, plus the
 0.2.0 is shipped (`v0.2.0`) and live on the public GitHub mirror. Unreleased
 since (see CHANGELOG): GitHub mirror, macOS CI matrix + release job, `pt off`
 (real disable + OSC 111 reset), `pt doctor`, PWD-cached prompt hot-path, palette
-validation, plugin-manager install docs. Suite is 58 green.
+validation, plugin-manager install docs, `pt pick auto` unpin fix, and a
+light-terminal-theme palette (`palettes/light.tsv` + `gen-light-palette.py`,
+theme-aware contrast/preview). Suite is 66 green.
 
-**Verify before release** (sandbox can't emit OSC / run live tty): in a real
-Ghostty run `pt doctor` (osc 11 → "supported"), `pt off` (background resets to
-default), `pt pick` (re-enables). Then cut the next tag (`v0.3.0`) to exercise
-the new release job, after re-running `tests/run.sh` + the smoke test below.
+**Verified in Ghostty** (the sandbox can't emit OSC / run a live tty): `pt
+doctor` → osc 11 "supported", `pt off` resets the background, `pt pick`
+re-enables. Remaining pre-release step: cut the next tag (`v0.3.0`) to exercise
+the still-untested release job, after a final `tests/run.sh`.
 
 ## Release smoke test (fresh Ghostty)
 
