@@ -5,6 +5,7 @@
 # Requires bash 4+ (associative arrays). On macOS install via `brew install bash`.
 #
 # Public functions:
+#   pwdtintii [cmd]           — entry point / fzf action hub (alias: pt)
 #   pwdtintii_apply           — re-apply background color to current shell
 #   pwdtintii_pick [family]   — pin a family for this shell (fzf picker if no arg)
 #   pwdtintii_pick --auto     — clear the pin, back to dir-derived auto mode

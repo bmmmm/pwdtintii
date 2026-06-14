@@ -4,10 +4,11 @@ Entry point for a fresh Claude session. Read this first, then pick a section.
 
 ## Status
 
-0.1.1 — bug-fix pass over the 0.1.0 scaffold. Plugin sources, palette, fzf
-picker, contrast check, README, LICENSE done; bash/zsh drift bugs fixed and
-locked down with a bats suite + Forgejo CI (see CHANGELOG 0.1.1).
-Dotfiles already source the plugin (`~/.zshrc` → `~/dotfiles/zshrc`).
+0.2.0 — feature release on the 0.1.0 scaffold: the `pt` action hub (looping
+menu, back navigation, stale-shell detection), full-height dimmed picker
+preview, plus the 0.1.x bash/zsh drift fixes — locked down with a 48-test bats
+suite + Forgejo CI (see CHANGELOG 0.2.0). Still alpha. Dotfiles already source
+the plugin (`~/.zshrc`).
 
 ## Next session — start here
 
@@ -19,9 +20,12 @@ Dotfiles already source the plugin (`~/.zshrc` → `~/dotfiles/zshrc`).
      description; pick `pick` → family picker opens.
    - In the family picker: arrow keys preview live, all **four** shades stay
      distinct against the dimmed background, ENTER pins.
-   - Back behaviour: from the menu pick `list` → it prints, a keypress returns
-     you to the menu; ESC in the family picker steps back to the menu; ESC at
-     the menu quits to the shell.
+   - Back behaviour: from the menu pick `list` → it prints, then a keypress
+     returns you to the menu. q quits the hub; arrow keys / ESC / letters all
+     return to the menu (no stray `[A` in the search). ESC steps back one level:
+     picker → menu, menu → shell.
+   - Staleness: edit + save the plugin file → next `pt` shows `plugin changed —
+     re-source` in the header (and `pt help` notes it); gone after re-sourcing.
    - Run `pt pick blue` → directly pins blue.
    - Run `pt help` → command overview prints.
 
@@ -32,7 +36,7 @@ Dotfiles already source the plugin (`~/.zshrc` → `~/dotfiles/zshrc`).
 ## Open work (small)
 
 - [ ] Demo GIF for README (asciinema → agg, or screen capture)
-- [ ] Tag `v0.1.1` after Ghostty verification passes
+- [ ] Tag `v0.2.0` after Ghostty verification passes
 - [ ] Add to skills-inventory if relevant
 - [ ] Eventually: GitHub mirror via `/new-mirrored-repo` (currently private only)
 

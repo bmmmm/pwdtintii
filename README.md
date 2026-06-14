@@ -5,7 +5,7 @@ background shifts to a color derived from it; every split/pane in the same dir
 gets a distinct shade. Deterministic, no daemon, no persisted state,
 terminal-agnostic via OSC 11.
 
-Status: 0.1.1 · alpha · zsh + bash 4+
+Status: 0.2.0 · alpha · zsh + bash 4+
 
 ![pt pick — live family picker with per-shade preview](docs/picker.png)
 
@@ -45,8 +45,11 @@ Open a fresh shell — the tint kicks in on the first prompt.
 ## Usage
 
 `pt` is the entry point. Run it bare for an fzf menu of every action, each with
-a live description in the preview pane; pick one and it runs. Display-only
-actions drop you back at the menu — ESC quits to the shell.
+a live description in the preview pane; pick one and it runs. The menu loops:
+display-only actions return to it after a keypress (q quits), and ESC steps back
+one level — out of the picker into the menu, out of the menu to the shell. After
+you update the plugin, the header flags the shell as stale until you re-source
+or open a new one.
 
 ![pt — the action hub](docs/hub.png)
 

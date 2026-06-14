@@ -3,7 +3,33 @@
 All notable changes to pwdtintii will be documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [0.1.1] — 2026-06-14
+## [0.2.0] — 2026-06-14
+
+### Added
+- **`pt` entry point** — bare `pt` opens an fzf action menu listing every
+  command (with a live description in the preview pane); selecting one runs it.
+  The menu loops: display-only actions (`list`, `preview`, `contrast`) pause
+  afterwards — q quits the hub, any other key (including arrow keys) returns to
+  the menu. ESC steps back one level: out of the family picker into the menu,
+  out of the menu to the shell. The header shows the current family/shade, and
+  flags a stale shell when the plugin file has changed on disk since it was
+  sourced (`pt help` notes it too). `pt <cmd>` dispatches directly: `pick`,
+  `list`, `auto`, `reload`, `preview`, `contrast`, `help`. Without fzf, bare
+  `pt` prints a cheat-sheet.
+- `bin/pwdtintii actions` / `describe-action` expose the action catalog — the
+  single source of truth the shell dispatcher re-runs, so menu and dispatch
+  cannot drift (guarded by a test).
+- `pwdtintii_pick --auto` clears a pinned family and returns to auto mode.
+- bats test harness (`tests/`) coupling the bash and zsh plugins, plus a
+  Forgejo CI workflow (shellcheck, `zsh -n`, bats).
+
+### Changed
+- The `pt` alias now points at the dispatcher (was `pwdtintii_apply`, a
+  visual no-op); `ptpick`/`ptlist`/… remain as direct accelerators.
+- Steady-state prompts (same directory) skip all subprocess work and only
+  re-emit, cutting ~6 forks per prompt down to the key lookup.
+- README rewritten compact, with screenshots of the action hub and the live
+  family picker (`docs/`).
 
 ### Fixed
 - **fzf preview height** — the family preview now stretches to fill the pane
@@ -44,32 +70,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - registry `.t` temp files are cleaned up and emptied registries removed.
 - OSC 11 emission validates the hex before emitting (no escape injection from a
   malformed palette).
-
-### Added
-- **`pt` entry point** — bare `pt` opens an fzf action menu listing every
-  command (with a live description in the preview pane); selecting one runs it.
-  The menu loops: display-only actions (`list`, `preview`, `contrast`) pause
-  afterwards — q quits the hub, any other key (including arrow keys) returns to
-  the menu. ESC steps back one level: out of the family picker into the menu,
-  out of the menu to the shell. The header shows the current family/shade, and
-  flags a stale shell when the plugin file has changed on disk since it was
-  sourced (`pt help` notes it too). `pt <cmd>` dispatches directly: `pick`,
-  `list`, `auto`, `reload`, `preview`, `contrast`, `help`. Without fzf, bare
-  `pt` prints a cheat-sheet.
-- `bin/pwdtintii actions` / `describe-action` expose the action catalog — the
-  single source of truth the shell dispatcher re-runs, so menu and dispatch
-  cannot drift (guarded by a test).
-- `pwdtintii_pick --auto` clears a pinned family and returns to auto mode.
-- bats test harness (`tests/`) coupling the bash and zsh plugins, plus a
-  Forgejo CI workflow (shellcheck, `zsh -n`, bats).
-
-### Changed
-- The `pt` alias now points at the dispatcher (was `pwdtintii_apply`, a
-  visual no-op); `ptpick`/`ptlist`/… remain as direct accelerators.
-- Steady-state prompts (same directory) skip all subprocess work and only
-  re-emit, cutting ~6 forks per prompt down to the key lookup.
-- README rewritten compact, with screenshots of the action hub and the live
-  family picker (`docs/`).
 
 ## [0.1.0] — 2026-05-26
 
