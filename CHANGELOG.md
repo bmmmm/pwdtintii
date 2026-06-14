@@ -3,6 +3,17 @@
 All notable changes to pwdtintii will be documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+- Public GitHub mirror at github.com/bmmmm/pwdtintii — one-way Forgejo→GitHub
+  push-mirror, so the project can now be cloned from GitHub.
+
+### Changed
+- CI consolidated into a single `.github/workflows/ci.yml`, read by both
+  Forgejo (source of truth) and GitHub (mirror); the `.forgejo/` copy was removed.
+- Install URL and copyright now reference the public GitHub identity.
+
 ## [0.2.0] — 2026-06-14
 
 ### Added
