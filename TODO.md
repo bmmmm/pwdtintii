@@ -1,6 +1,6 @@
 # TODO — pwdtintii
 
-Entry point for a fresh Claude session. Read this first, then pick a section.
+Entry point for picking up work. Read this first, then pick a section.
 
 ## Status
 
@@ -17,8 +17,8 @@ navigation, stale-shell detection), full-height dimmed picker preview, plus the
 ## Release smoke test (fresh Ghostty)
 
 1. **Tinting + the `pt` hub**
-   - Open a new tab in `~/ops`, expect tint matching `pt list` output.
-   - `cd ~/dotfiles` → tint should change at next prompt.
+   - Open a new tab in a git repo, expect tint matching `pt list` output.
+   - `cd` into a different repo → tint should change at next prompt.
    - `cmd+d` (split) → same family, different shade.
    - Run `pt` → fzf action menu opens; arrow keys show each action's
      description; pick `pick` → family picker opens.
@@ -34,14 +34,13 @@ navigation, stale-shell detection), full-height dimmed picker preview, plus the
    - Run `pt help` → command overview prints.
 
 2. **bash-side verify** (Linux later or via `brew install bash` on Mac):
-   - `bash --rcfile <(echo "source ~/offline_coding/pwdtintii/pwdtintii.plugin.bash")`
+   - `bash --rcfile <(echo "source ~/.local/share/pwdtintii/pwdtintii.plugin.bash")`
    - Confirm `pwdtintii_list` works, OSC 11 emits on prompt.
 
 ## Open work (small)
 
 - [ ] Demo GIF for README (asciinema → agg, or screen capture)
-- [ ] Add to skills-inventory if relevant
-- [ ] Eventually: GitHub mirror via `/new-mirrored-repo` (currently private only)
+- [ ] GitHub public mirror (currently Forgejo-private only)
 
 ## Open work (medium)
 
@@ -52,8 +51,8 @@ navigation, stale-shell detection), full-height dimmed picker preview, plus the
 
 ## Design decisions already made
 
-- **License:** Apache-2.0 (per `~/ops/reference/licensing.md` decision tree —
-  plugin = library + glue, not copyleft-warranted algorithm).
+- **License:** Apache-2.0 (plugin = library + glue, not a copyleft-warranted
+  algorithm).
 - **No MIT.** No patent grant, no NOTICE.
 - **Palette format:** TSV, shell-agnostic, single source of truth across
   zsh + bash plugins + CLI.
