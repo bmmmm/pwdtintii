@@ -48,6 +48,19 @@ _pwdtintii_is_stale() {
   [[ -n "$now" && -n "$_PWDTINTII_LOADED_MTIME" && "$now" != "$_PWDTINTII_LOADED_MTIME" ]]
 }
 
+# Re-source the plugin into the running shell — the "reload the session" the
+# stale notice used to only tell you to do by hand. Safe to re-run: the
+# PROMPT_COMMAND hook append is guarded against duplicates, re-running recaptures
+# the load-time mtime (so the shell stops reporting stale), and the per-shell
+# state survives — runtime globals (pinned/forced family, shade, disabled,
+# PWD-cache) are left untouched by the boot path, and config like
+# PWDTINTII_PALETTE is kept via `:=`.
+_pwdtintii_resource() {
+  [[ -f "$_PWDTINTII_PLUGIN_FILE" ]] || return 1
+  # shellcheck source=/dev/null  # dynamic self-path; resolved at runtime
+  source "$_PWDTINTII_PLUGIN_FILE"
+}
+
 declare -gA _pwdtintii_shades
 declare -ga _pwdtintii_families
 declare -gA _pwdtintii_overrides
@@ -445,6 +458,13 @@ pwdtintii_doctor() {
 # same dispatcher, so the action catalog (bin/pwdtintii actions) and the case
 # arms below stay in lockstep.
 pwdtintii() {
+  # Self-heal a stale shell: if the plugin file changed on disk since this shell
+  # sourced it, re-source it before dispatching so `pt` always runs current code.
+  # (This running pwdtintii keeps its already-parsed body for this one call, but
+  # the actions it dispatches resolve to the freshly defined functions.)
+  if _pwdtintii_is_stale; then
+    _pwdtintii_resource && echo "pwdtintii: plugin changed on disk — reloaded this shell" >&2
+  fi
   local sub="${1:-}"
   case "$sub" in
     "")

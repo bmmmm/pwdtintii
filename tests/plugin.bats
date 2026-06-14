@@ -208,6 +208,34 @@ teardown() { teardown_sandbox; }
   [[ "$output" == *"stale-detected"* ]]
 }
 
+@test "pt auto-reloads a stale shell before dispatching" {
+  need_bash
+  # Corrupt the family list and force the staleness check to fire; dispatching
+  # any command must re-source the plugin (restoring all 37 families) and clear
+  # the stale flag — i.e. `pt` self-heals after the plugin changed on disk.
+  run bash_eval "$TEST_HOME" "$TEST_HOME" '
+    _pwdtintii_families=(bogus)
+    _PWDTINTII_LOADED_MTIME=1
+    pwdtintii list >/dev/null 2>&1
+    _pwdtintii_is_stale && echo "still-stale" || echo "healed"
+    echo "count=${#_pwdtintii_families[@]}"
+  '
+  [[ "$output" == *"healed"* ]]
+  [[ "$output" == *"count=37"* ]]
+}
+
+@test "pt does not re-source when the plugin is unchanged" {
+  need_bash
+  # Same corruption, fresh (non-stale) shell: the dispatcher must NOT re-source,
+  # so the corruption survives. Guards against re-sourcing on every invocation.
+  run bash_eval "$TEST_HOME" "$TEST_HOME" '
+    _pwdtintii_families=(bogus)
+    pwdtintii list >/dev/null 2>&1
+    echo "count=${#_pwdtintii_families[@]}"
+  '
+  [[ "$output" == *"count=1"* ]]
+}
+
 # ── pt off / disable + re-enable ─────────────────────────────────────────────
 
 @test "off sets the disabled flag and makes apply a no-op" {

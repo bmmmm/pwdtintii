@@ -83,6 +83,21 @@ teardown() { teardown_sandbox; }
   [[ "$output" == *"rc=1"* ]]
 }
 
+# The `pt` dispatcher self-heals a stale shell by re-sourcing in both plugins;
+# plugin.bats exercises the bash side, this guards the zsh side.
+@test "zsh pt auto-reloads a stale shell before dispatching" {
+  run zsh_eval /testhome /testhome '
+    _pwdtintii_families=(bogus)
+    _PWDTINTII_LOADED_MTIME=1
+    pwdtintii list >/dev/null 2>&1
+    _pwdtintii_is_stale && print still-stale || print healed
+    print "count=${#_pwdtintii_families}"
+  '
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"healed"* ]]
+  [[ "$output" == *"count=37"* ]]
+}
+
 # The picker's dark/light toggle commits through _pwdtintii_set_palette in both
 # shells; plugin.bats exercises the bash side, this guards the zsh side.
 @test "zsh set_palette switches the active palette (light shades differ)" {
