@@ -168,7 +168,8 @@ cmd_describe_action() {
       printf 'pick — pin a color family\n\n'
       printf 'Opens the fzf family picker. Arrow keys preview each\n'
       printf 'family live as the terminal background (OSC 11);\n'
-      printf 'ENTER pins it for this shell, ESC cancels.\n\n'
+      printf 'ENTER pins it for this shell, ESC cancels. ctrl-t\n'
+      printf 'toggles between the dark and light palette groups.\n\n'
       printf 'Direct: pt pick <family>   ·   alias: ptpick\n' ;;
     list)
       printf 'list — families + current mapping\n\n'

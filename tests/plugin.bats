@@ -242,6 +242,38 @@ teardown() { teardown_sandbox; }
   [[ "$output" == *"rc=0"* ]]
 }
 
+# ── pick: dark/light group toggle ────────────────────────────────────────────
+# The fzf picker's ctrl-t toggle commits through _pwdtintii_set_palette; the
+# interactive loop itself needs a real tty, but the commit logic is unit-testable.
+
+@test "set_palette switches the active palette and its shades" {
+  run bash_eval "$TEST_HOME" "$TEST_HOME" '
+    dark="${_pwdtintii_shades[blue]}"
+    _pwdtintii_set_palette "$_pwdtintii_self/palettes/light.tsv"
+    light="${_pwdtintii_shades[blue]}"
+    [[ "$PWDTINTII_PALETTE" == *"/light.tsv" ]] && echo pal-ok
+    [[ -n "$light" && "$dark" != "$light" ]] && echo shades-differ
+  '
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"pal-ok"* ]]
+  [[ "$output" == *"shades-differ"* ]]
+}
+
+@test "committing a light-group pick pins the family with light shades" {
+  # Call pwdtintii_pick directly (not in $()) so its palette/family state
+  # persists; `run` captures the OSC it emits to stdout either way.
+  run bash_eval "$TEST_HOME" "$TEST_HOME" '
+    _pwdtintii_set_palette "$_pwdtintii_self/palettes/light.tsv"   # picker does this on commit
+    pwdtintii_pick blue
+    printf "\nfamily=%s pal=%s\n" "$_PWDTINTII_FAMILY" "${PWDTINTII_PALETTE##*/}"
+  '
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"family=blue"* ]]
+  [[ "$output" == *"pal=light.tsv"* ]]
+  [[ "$output" == *"]11;#"* ]]    # an OSC 11 background was emitted
+  [[ "$output" != *"#001f70"* ]]  # ...and it is not the dark-palette blue
+}
+
 @test "doctor reports the setup and skips the live query off-tty" {
   run bash_eval / / 'pwdtintii doctor'
   [ "$status" -eq 0 ]

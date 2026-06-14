@@ -76,7 +76,7 @@ or open a new one.
 | Command            | What it does |
 |--------------------|---|
 | `pt`               | the action menu |
-| `pt pick [family]` | pin a family — fzf picker with live preview; a name pins directly |
+| `pt pick [family]` | pin a family — fzf picker with live preview; `ctrl-t` toggles the dark/light group; a name pins directly |
 | `pt auto`          | unpin, back to directory-derived mode |
 | `pt off`           | stop tinting and reset the terminal background (OSC 111) |
 | `pt list`          | current key / family / shade, plus all families |
@@ -101,10 +101,12 @@ Set before sourcing the plugin:
 | `PWDTINTII_SHADES_DIR`     | per-dir PID-registry location |
 | `PWDTINTII_DIR_KEY_FN`     | function resolving `$PWD` → key (default: git-root, else `~/<top>`) |
 
-The palette is a TSV of `family` + four shades; 37 families ship by default. On
-a light terminal theme, point `PWDTINTII_PALETTE` at the bundled pale variant
-`~/.local/share/pwdtintii/palettes/light.tsv` (same families, dark-text-readable
-shades). See [`palettes/README.md`](palettes/README.md) for the format.
+The palette is a TSV of `family` + four shades; 37 families ship by default. A
+pale `light.tsv` variant (same families, dark-text-readable shades) ships
+alongside it for light terminal themes: switch to it live in the picker with
+`ctrl-t`, or make it the default by pointing `PWDTINTII_PALETTE` at
+`~/.local/share/pwdtintii/palettes/light.tsv` before sourcing. See
+[`palettes/README.md`](palettes/README.md) for the format.
 
 ## How it works
 
