@@ -14,14 +14,18 @@ navigation, stale-shell detection), full-height dimmed picker preview, plus the
 0.2.0 is shipped (`v0.2.0`) and live on the public GitHub mirror. Unreleased
 since (see CHANGELOG): GitHub mirror, macOS CI matrix + release job, `pt off`
 (real disable + OSC 111 reset), `pt doctor`, PWD-cached prompt hot-path, palette
-validation, plugin-manager install docs, `pt pick auto` unpin fix, and a
+validation, plugin-manager install docs, `pt pick auto` unpin fix, a
 light-terminal-theme palette (`palettes/light.tsv` + `gen-light-palette.py`,
-theme-aware contrast/preview). Suite is 66 green.
+theme-aware contrast/preview), and a dark/light group toggle in the `pt pick`
+picker (ctrl-t). Suite is 69 green.
 
-**Verified in Ghostty** (the sandbox can't emit OSC / run a live tty): `pt
-doctor` → osc 11 "supported", `pt off` resets the background, `pt pick`
-re-enables. Remaining pre-release step: cut the next tag (`v0.3.0`) to exercise
-the still-untested release job, after a final `tests/run.sh`.
+**Verify in Ghostty before release** (the sandbox can't run a live tty): the
+`pt pick` **ctrl-t dark/light toggle is new and unverified** — open `pt pick`,
+press ctrl-t to flip groups (header + swatches change), ENTER from the light
+group, confirm the shell switches to light and pins. (Already verified earlier:
+`pt doctor` → osc 11 "supported", `pt off` resets the background, `pt pick`
+re-enables.) Then cut the next tag (`v0.3.0`) to exercise the still-untested
+release job, after a final `tests/run.sh`.
 
 ## Release smoke test (fresh Ghostty)
 
@@ -33,6 +37,8 @@ the still-untested release job, after a final `tests/run.sh`.
      description; pick `pick` → family picker opens.
    - In the family picker: arrow keys preview live, all **four** shades stay
      distinct against the dimmed background, ENTER pins.
+   - ctrl-t flips the dark↔light group (prompt + swatches change); ENTER from
+     the light group switches the shell to light and pins.
    - Back behaviour: from the menu pick `list` → it prints, then a keypress
      returns you to the menu. q quits the hub; arrow keys / ESC / letters all
      return to the menu (no stray `[A` in the search). ESC steps back one level:
@@ -61,12 +67,13 @@ the still-untested release job, after a final `tests/run.sh`.
 - [ ] tmux integration — set per-pane background via `select-pane -P`
 - [x] Light-theme palette variant — `palettes/light.tsv`, generated from
       `default.tsv` by `scripts/gen-light-palette.py` (same families/order, pale
-      WCAG-readable shades). contrast-check + preview are now theme-aware.
-      ← erledigt 2026-06-14
+      WCAG-readable shades). contrast-check + preview are now theme-aware, and
+      `pt pick` has a ctrl-t dark/light group toggle. ← erledigt 2026-06-14
   - [ ] Follow-up (needs real-terminal verify): the live fzf picker preview
         (`bin/pwdtintii cmd_preview_family` / focus tone) still renders light
-        text — on a light palette the preview pane reads poorly though the actual
-        tint is correct. Make the picker preview theme-aware too.
+        text — now reachable via the ctrl-t toggle, so on the light group the
+        preview pane reads poorly though the actual tint is correct. Make the
+        picker preview theme-aware too.
 
 ## Design decisions already made
 
