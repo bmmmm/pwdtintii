@@ -34,6 +34,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   explicit `PWDTINTII_PALETTE` in your rc still sets the startup default.
 
 ### Changed
+- `pt` now self-heals a stale shell: when the plugin file changed on disk since
+  the shell sourced it, the next `pt` re-sources the plugin before dispatching
+  (carrying over the pinned family, shade, and disabled state) and prints a
+  one-line notice — instead of only flagging "plugin changed — re-source" and
+  leaving the re-source to you. Re-sourcing is safe to repeat: the prompt hook
+  registration dedupes and runtime state lives in globals the load path preserves.
 - CI consolidated into a single `.github/workflows/ci.yml`, read by both
   Forgejo (source of truth) and GitHub (mirror); the `.forgejo/` copy was removed.
 - Install URL and copyright now reference the public GitHub identity.

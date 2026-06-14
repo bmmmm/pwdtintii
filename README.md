@@ -68,8 +68,9 @@ bmmmm/pwdtintii
 a live description in the preview pane; pick one and it runs. The menu loops:
 display-only actions return to it after a keypress (q quits), and ESC steps back
 one level — out of the picker into the menu, out of the menu to the shell. After
-you update the plugin, the header flags the shell as stale until you re-source
-or open a new one.
+you edit the plugin file, the next `pt` re-sources it automatically — your pinned
+family, shade, and disabled state carry over — and prints a one-line notice, so
+there is no manual re-source step.
 
 ![pt — the action hub](docs/hub.png)
 

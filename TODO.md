@@ -16,8 +16,9 @@ since (see CHANGELOG): GitHub mirror, macOS CI matrix + release job, `pt off`
 (real disable + OSC 111 reset), `pt doctor`, PWD-cached prompt hot-path, palette
 validation, plugin-manager install docs, `pt pick auto` unpin fix, a
 light-terminal-theme palette (`palettes/light.tsv` + `gen-light-palette.py`,
-theme-aware contrast/preview), and a dark/light group toggle in the `pt pick`
-picker (ctrl-t). Suite is 69 green.
+theme-aware contrast/preview), a dark/light group toggle in the `pt pick`
+picker (ctrl-t), and a self-reloading `pt` (auto re-source when the plugin
+file changed on disk, so there is no manual re-source step). Suite is 72 green.
 
 **Verify in Ghostty before release** (the sandbox can't run a live tty): the
 `pt pick` **ctrl-t dark/light toggle is new and unverified** — open `pt pick`,
@@ -43,8 +44,9 @@ release job, after a final `tests/run.sh`.
      returns you to the menu. q quits the hub; arrow keys / ESC / letters all
      return to the menu (no stray `[A` in the search). ESC steps back one level:
      picker → menu, menu → shell.
-   - Staleness: edit + save the plugin file → next `pt` shows `plugin changed —
-     re-source` in the header (and `pt help` notes it); gone after re-sourcing.
+   - Staleness: edit + save the plugin file → next `pt` auto-re-sources it and
+     prints `plugin changed on disk — reloaded this shell`; the pinned family
+     and shade carry over, and the stale flag clears without a manual re-source.
    - Run `pt pick blue` → directly pins blue.
    - Run `pt help` → command overview prints.
 
