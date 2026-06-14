@@ -89,7 +89,7 @@ pwdtintii/
 │   ├── plugin.bats         # bash plugin behaviour
 │   ├── cli.bats            # bin/pwdtintii subcommands
 │   └── run.sh
-├── .forgejo/workflows/
+├── .github/workflows/
 │   └── ci.yml              # shellcheck + zsh -n + bats
 ├── examples/
 │   ├── aliases.zsh         # opt-in pt, ptpick, ...

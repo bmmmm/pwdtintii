@@ -23,7 +23,7 @@ iTerm2, modern xterm), **zsh** or **bash 4+**, and `shasum`/`sha1sum`. `fzf` is
 optional but powers the menus below (both degrade to a printed list without it).
 
 ```sh
-git clone https://forgejo.example.com/<owner>/pwdtintii ~/.local/share/pwdtintii
+git clone https://github.com/bmmmm/pwdtintii ~/.local/share/pwdtintii
 ```
 
 **zsh** — add to `~/.zshrc`:
