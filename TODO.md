@@ -11,8 +11,11 @@ navigation, stale-shell detection), full-height dimmed picker preview, plus the
 
 ## Next session — start here
 
-0.2.0 is shipped (`v0.2.0`). Next: pick from **Open work** below. Re-run
-`tests/run.sh` and the smoke test below before any future release.
+0.2.0 is shipped (`v0.2.0`) and live on the public GitHub mirror with sharper
+screenshots. Unreleased since (see CHANGELOG): the public mirror and CI
+consolidated into a single `.github/workflows/ci.yml`. Pick from **Open work**
+below — the GitHub CI matrix + release item is the highest-leverage next step.
+Re-run `tests/run.sh` and the smoke test below before any release.
 
 ## Release smoke test (fresh Ghostty)
 
@@ -41,6 +44,10 @@ navigation, stale-shell detection), full-height dimmed picker preview, plus the
 
 - [ ] Demo GIF for README (asciinema → agg, or screen capture)
 - [x] GitHub public mirror — live at github.com/bmmmm/pwdtintii (one-way Forgejo→GitHub, 8h + on-commit) ← erledigt 2026-06-14
+- [ ] GitHub CI: macOS matrix + release automation
+      - Add `macos-latest` to test matrix (catches BSD awk/sed vs. GNU, macOS bash 3.2, different zsh)
+      - Release job on `v*` tags: auto-create GitHub Release, extract Changelog section
+      - This is the GitHub-exclusive value: Forgejo has no runner, macOS runners are free on GitHub
 
 ## Open work (medium)
 
