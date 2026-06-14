@@ -8,11 +8,32 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 - Public GitHub mirror at github.com/bmmmm/pwdtintii — one-way Forgejo→GitHub
   push-mirror, so the project can now be cloned from GitHub.
+- **`pt off`** — actually stops tinting: resets the terminal background to its
+  default (OSC 111) and makes the prompt hook a no-op until re-enabled via
+  `pt pick` / `pt auto` / `pt reload`. Previously `off` was only an alias for
+  `auto`/unpin and kept tinting by directory.
+- **`pt doctor`** — reports the setup (hash command, fzf, palette, terminal) and
+  probes OSC 11 support live, surfacing the otherwise-silent failure mode of a
+  terminal that ignores OSC 11.
+- Install via a plugin manager (oh-my-zsh / zinit / antidote), documented in the
+  README — the `pwdtintii.plugin.zsh` naming already followed the convention.
+- macOS coverage in CI (`macos-latest`) — exercises the BSD `stat -f` / `shasum`
+  / BSD-awk / brew-bash path the project is built around, which the Linux-only
+  job never touched — plus a release job that cuts a GitHub Release from the
+  matching CHANGELOG section on `v*` tags.
 
 ### Changed
 - CI consolidated into a single `.github/workflows/ci.yml`, read by both
   Forgejo (source of truth) and GitHub (mirror); the `.forgejo/` copy was removed.
 - Install URL and copyright now reference the public GitHub identity.
+- Prompt hot-path: the directory key is cached by `$PWD`, skipping the per-prompt
+  subshell fork + git-root stat-walk while the directory is unchanged (a fresh
+  `git init` in the current dir is picked up on the next `cd`).
+
+### Fixed
+- Palette loading validates that each family has four `#rrggbb` shades and skips
+  any malformed row with a warning, instead of storing it and silently emitting
+  nothing on that family.
 
 ## [0.2.0] — 2026-06-14
 

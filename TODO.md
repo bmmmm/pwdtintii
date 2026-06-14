@@ -11,11 +11,15 @@ navigation, stale-shell detection), full-height dimmed picker preview, plus the
 
 ## Next session — start here
 
-0.2.0 is shipped (`v0.2.0`) and live on the public GitHub mirror with sharper
-screenshots. Unreleased since (see CHANGELOG): the public mirror and CI
-consolidated into a single `.github/workflows/ci.yml`. Pick from **Open work**
-below — the GitHub CI matrix + release item is the highest-leverage next step.
-Re-run `tests/run.sh` and the smoke test below before any release.
+0.2.0 is shipped (`v0.2.0`) and live on the public GitHub mirror. Unreleased
+since (see CHANGELOG): GitHub mirror, macOS CI matrix + release job, `pt off`
+(real disable + OSC 111 reset), `pt doctor`, PWD-cached prompt hot-path, palette
+validation, plugin-manager install docs. Suite is 58 green.
+
+**Verify before release** (sandbox can't emit OSC / run live tty): in a real
+Ghostty run `pt doctor` (osc 11 → "supported"), `pt off` (background resets to
+default), `pt pick` (re-enables). Then cut the next tag (`v0.3.0`) to exercise
+the new release job, after re-running `tests/run.sh` + the smoke test below.
 
 ## Release smoke test (fresh Ghostty)
 
@@ -42,12 +46,12 @@ Re-run `tests/run.sh` and the smoke test below before any release.
 
 ## Open work (small)
 
-- [ ] Demo GIF for README (asciinema → agg, or screen capture)
+- [ ] Demo GIF for README (asciinema can't capture the color change → screen capture)
 - [x] GitHub public mirror — live at github.com/bmmmm/pwdtintii (one-way Forgejo→GitHub, 8h + on-commit) ← erledigt 2026-06-14
-- [ ] GitHub CI: macOS matrix + release automation
-      - Add `macos-latest` to test matrix (catches BSD awk/sed vs. GNU, macOS bash 3.2, different zsh)
-      - Release job on `v*` tags: auto-create GitHub Release, extract Changelog section
-      - This is the GitHub-exclusive value: Forgejo has no runner, macOS runners are free on GitHub
+- [x] GitHub CI: macOS matrix + release automation ← erledigt 2026-06-14
+      - `macos-latest` in the test matrix (BSD awk/`stat -f`/`shasum`, brew bash 4+)
+      - Release job on `v*` tags: GitHub Release with the extracted CHANGELOG section
+      - Untested until first real tag push — `v0.3.0` will be the first exercise
 
 ## Open work (medium)
 

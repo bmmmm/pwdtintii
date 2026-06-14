@@ -51,9 +51,14 @@ fi
 _pwdtintii_load_palette() {
   _pwdtintii_shades=()
   _pwdtintii_families=()
-  local family s0 s1 s2 s3
+  local family s0 s1 s2 s3 sh ok
   while IFS=$'\t' read -r family s0 s1 s2 s3; do
     [[ -z "$family" || "$family" == "family" || "$family" == \#* ]] && continue
+    ok=1
+    for sh in "$s0" "$s1" "$s2" "$s3"; do
+      [[ "$sh" =~ '^#?[0-9a-fA-F]{6}$' ]] || ok=0
+    done
+    (( ok )) || { print -u2 -- "pwdtintii: palette: skipping '$family' — needs 4 '#rrggbb' shades"; continue; }
     _pwdtintii_shades[$family]="$s0 $s1 $s2 $s3"
     _pwdtintii_families+=($family)
   done < "$PWDTINTII_PALETTE"
@@ -183,8 +188,18 @@ _pwdtintii_emit() {
 # ── Public: apply current dir's color ────────────────────────────────────────
 pwdtintii_apply() {
   (( ${#_pwdtintii_families} == 0 )) && return 0
+  [[ -n "$_PWDTINTII_DISABLED" ]] && return 0
   local key family shade_idx
-  key=$($PWDTINTII_DIR_KEY_FN)
+  # Cache the dir-key by $PWD: resolving it forks a subshell and stat-walks for
+  # the git root on every prompt. Skip both while $PWD is unchanged. Tradeoff: a
+  # fresh `git init` in the current dir is picked up on the next cd, not at once.
+  if [[ "$PWD" != "$_PWDTINTII_LAST_PWD" || -z "$_PWDTINTII_LAST_KEY" ]]; then
+    key=$($PWDTINTII_DIR_KEY_FN)
+    _PWDTINTII_LAST_PWD="$PWD"
+    _PWDTINTII_LAST_KEY="$key"
+  else
+    key="$_PWDTINTII_LAST_KEY"
+  fi
 
   if [[ -n "$_PWDTINTII_FORCED_FAMILY" ]]; then
     family="$_PWDTINTII_FORCED_FAMILY"
@@ -215,6 +230,7 @@ pwdtintii_apply() {
 # ── Public: pin a family for this shell ──────────────────────────────────────
 pwdtintii_pick() {
   local family="$1"
+  unset _PWDTINTII_DISABLED
   if [[ "$family" == "--auto" || "$family" == "-" ]]; then
     unset _PWDTINTII_FORCED_FAMILY
     _pwdtintii_restore
@@ -243,6 +259,18 @@ pwdtintii_pick() {
 _pwdtintii_restore() {
   _PWDTINTII_FORCE_REAPPLY=1
   pwdtintii_apply
+}
+
+# ── Public: stop tinting + reset the terminal background ─────────────────────
+# Real off — unlike `auto`, which only unpins and keeps tinting by directory.
+# Blanks our state, drops this shell's registry entry, and resets the background
+# to the terminal default (OSC 111). Re-enable with pt pick / pt auto / pt reload.
+pwdtintii_off() {
+  _PWDTINTII_DISABLED=1
+  unset _PWDTINTII_FORCED_FAMILY _PWDTINTII_PINNED _PWDTINTII_FAMILY \
+        _PWDTINTII_SHADE_IDX _PWDTINTII_LAST_PWD _PWDTINTII_LAST_KEY
+  _pwdtintii_release
+  printf '\e]111\a'
 }
 
 # fzf picker: prints the chosen family on stdout, propagates fzf's exit code.
@@ -302,11 +330,44 @@ pwdtintii_list() {
 
 # ── Public: reload palette ───────────────────────────────────────────────────
 pwdtintii_reload() {
+  unset _PWDTINTII_DISABLED
   _pwdtintii_load_palette
   _pwdtintii_load_overrides
   _PWDTINTII_FORCE_REAPPLY=1
   pwdtintii_apply
   print "pwdtintii: reloaded (${#_pwdtintii_families} families)"
+}
+
+# ── Public: diagnose the setup ───────────────────────────────────────────────
+# The tool's main silent-failure mode is a terminal that ignores OSC 11. Surface
+# the moving parts, then probe OSC 11 support live when attached to a terminal.
+pwdtintii_doctor() {
+  print "pwdtintii doctor"
+  print "  hash command: $_PWDTINTII_HASHCMD"
+  if command -v fzf >/dev/null 2>&1; then
+    print "  fzf:          found (menus + live picker enabled)"
+  else
+    print "  fzf:          missing (menus fall back to a printed list)"
+  fi
+  print "  palette:      $PWDTINTII_PALETTE (${#_pwdtintii_families} families)"
+  print "  state:        family=${_PWDTINTII_FAMILY:-auto} shade=${_PWDTINTII_SHADE_IDX:-?} disabled=${_PWDTINTII_DISABLED:-0}"
+  print "  terminal:     TERM=${TERM:-?} COLORTERM=${COLORTERM:-?} TERM_PROGRAM=${TERM_PROGRAM:-?}"
+  if [[ ! -t 1 ]]; then
+    print "  osc 11:       skipped (output is not a terminal)"
+    return 0
+  fi
+  # Query the current background (OSC 11 with '?'); a compliant terminal answers
+  # with an ESC-prefixed 'rgb:' sequence. Bounded read so we never hang; drain
+  # the rest of the reply so it does not leak onto the next prompt.
+  local reply=""
+  printf '\e]11;?\a' > /dev/tty
+  read -k1 -s -t 0.3 reply < /dev/tty 2>/dev/null
+  if [[ -n "$reply" ]]; then
+    while read -k1 -s -t 0.05 _ < /dev/tty 2>/dev/null; do : ; done
+    print "  osc 11:       terminal responded — supported"
+  else
+    print "  osc 11:       no response — terminal may not support OSC 11 (tinting will be a no-op)"
+  fi
 }
 
 # ── Public: the `pt` entry point ─────────────────────────────────────────────
@@ -327,7 +388,9 @@ pwdtintii() {
     pick)            shift; pwdtintii_pick "$@" ;;
     list|ls)         pwdtintii_list ;;
     apply)           pwdtintii_apply ;;
-    auto|off|unpin)  pwdtintii_pick --auto ;;
+    auto|unpin)      pwdtintii_pick --auto ;;
+    off)             pwdtintii_off ;;
+    doctor|diag)     pwdtintii_doctor ;;
     reload)          pwdtintii_reload ;;
     preview)         "${_pwdtintii_self}/scripts/preview.sh" ;;
     contrast)        "${_pwdtintii_self}/scripts/contrast-check.sh" ;;
@@ -395,9 +458,11 @@ _pwdtintii_help() {
   print -r -- "  pt pick [family]   pin a color family (live picker)"
   print -r -- "  pt list            families + current mapping"
   print -r -- "  pt auto            back to directory-derived auto (unpin)"
+  print -r -- "  pt off             stop tinting + reset the terminal background"
   print -r -- "  pt reload          re-read the palette TSV"
   print -r -- "  pt preview         visual dump of the whole palette"
   print -r -- "  pt contrast        WCAG contrast check of all shades"
+  print -r -- "  pt doctor          diagnose terminal OSC 11 / fzf / palette"
   print -r -- "  pt help            this overview"
   print
   print -r -- "  aliases: ptpick · ptlist · ptreload · ptpreview · ptcontrast"

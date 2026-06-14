@@ -207,3 +207,47 @@ teardown() { teardown_sandbox; }
   [[ "$output" == *"fresh-ok"* ]]
   [[ "$output" == *"stale-detected"* ]]
 }
+
+# ── pt off / disable + re-enable ─────────────────────────────────────────────
+
+@test "off sets the disabled flag and makes apply a no-op" {
+  run bash_eval "$TEST_HOME" "$TEST_HOME" '
+    pwdtintii_apply >/dev/null        # tint once
+    pwdtintii_off >/dev/null          # real off, not just unpin
+    out=$(pwdtintii_apply)            # must emit nothing now
+    printf "disabled=%s applyout=[%s]\n" "${_PWDTINTII_DISABLED:-}" "$out"
+  '
+  [[ "$output" == *"disabled=1"* ]]
+  [[ "$output" == *"applyout=[]"* ]]
+}
+
+@test "pick re-enables tinting after off" {
+  run bash_eval "$TEST_HOME" "$TEST_HOME" '
+    pwdtintii_off >/dev/null
+    pwdtintii_pick blue >/dev/null
+    printf "disabled=[%s] family=%s\n" "${_PWDTINTII_DISABLED:-}" "$_PWDTINTII_FAMILY"
+  '
+  [[ "$output" == *"disabled=[]"* ]]
+  [[ "$output" == *"family=blue"* ]]
+}
+
+@test "doctor reports the setup and skips the live query off-tty" {
+  run bash_eval / / 'pwdtintii doctor'
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"pwdtintii doctor"* ]]
+  [[ "$output" == *"palette:"* ]]
+  [[ "$output" == *"osc 11:"* ]]
+}
+
+# ── palette validation ───────────────────────────────────────────────────────
+
+@test "palette load skips a family with malformed shades, keeps the good one" {
+  printf 'good\t#001f70\t#002d8f\t#0a38a8\t#1442c0\n' >  "$TEST_HOME/p.tsv"
+  printf 'bad\t#001f70\tnothex\t#0a38a8\t#1442c0\n'   >> "$TEST_HOME/p.tsv"
+  run env PWDTINTII_PALETTE="$TEST_HOME/p.tsv" "$BASH4" -c '
+    source "'"$REPO_ROOT"'/pwdtintii.plugin.bash" 2>&1
+    printf "fams=[%s]\n" "${_pwdtintii_families[*]}"
+  '
+  [[ "$output" == *"skipping 'bad'"* ]]
+  [[ "$output" == *"fams=[good]"* ]]
+}

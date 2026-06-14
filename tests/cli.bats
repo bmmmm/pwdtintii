@@ -55,15 +55,15 @@ teardown() { teardown_sandbox; }
   [ "$output" = "#000f38" ]
 }
 
-@test "actions lists the six hub actions, machine name in field 1" {
+@test "actions lists the seven hub actions, machine name in field 1" {
   run "$CLI" actions
   [ "$status" -eq 0 ]
   local rows; rows=$(printf '%s\n' "$output" | wc -l | tr -d ' ')
-  [ "$rows" -eq 6 ]
+  [ "$rows" -eq 7 ]
   # Field 1 (tab-delimited) is the machine name the shell dispatcher re-runs;
   # pin the catalog so any add/remove forces a deliberate test update.
   local names; names=$(printf '%s\n' "$output" | cut -f1 | tr '\n' ' ')
-  [ "$names" = "pick list auto reload preview contrast " ]
+  [ "$names" = "pick list auto off reload preview contrast " ]
 }
 
 @test "describe-action renders a known action" {
@@ -77,6 +77,29 @@ teardown() { teardown_sandbox; }
   run "$CLI" describe-action zzz
   [ "$status" -eq 0 ]
   [[ "$output" == *"no description"* ]]
+}
+
+@test "describe-action renders the off action" {
+  run "$CLI" describe-action off
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"stop tinting"* ]]
+  [[ "$output" == *"OSC 111"* ]]
+}
+
+# ── scripts smoke (preview + contrast) ───────────────────────────────────────
+# These ship as `pt preview` / `pt contrast`; CI only shellchecked them before.
+
+@test "preview script runs over the palette" {
+  run "$REPO_ROOT/scripts/preview.sh"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Palette:"* ]]
+}
+
+@test "contrast-check runs and prints a summary" {
+  command -v python3 >/dev/null 2>&1 || skip "python3 not available"
+  run "$REPO_ROOT/scripts/contrast-check.sh"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Summary:"* ]]
 }
 
 @test "unknown subcommand exits non-zero" {

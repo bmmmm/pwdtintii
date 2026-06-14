@@ -3,7 +3,7 @@
 #   source ~/path/to/pwdtintii/examples/aliases.bash
 
 # `pt` is the entry point: bare `pt` opens the fzf action menu, `pt <cmd>`
-# dispatches (pick / list / auto / reload / preview / contrast / help).
+# dispatches (pick / list / auto / off / reload / preview / contrast / doctor / help).
 alias pt='pwdtintii'
 alias ptpick='pwdtintii_pick'
 alias ptlist='pwdtintii_list'
