@@ -1,0 +1,30 @@
+name: Strip TODO from public mirror
+
+on:
+  push:
+    branches: [main]
+
+# Needed to amend and force-push the mirrored commit
+permissions:
+  contents: write
+
+jobs:
+  strip-todo:
+    runs-on: ubuntu-latest
+    # Skip if already run by the bot (belt-and-suspenders on top of GITHUB_TOKEN protection)
+    if: github.actor != 'github-actions[bot]'
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 1
+
+      - name: Remove TODO.md and amend HEAD
+        run: |
+          if git ls-files --error-unmatch TODO.md 2>/dev/null; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git rm TODO.md
+            git commit --amend --no-edit
+            git push --force-with-lease
+          fi
