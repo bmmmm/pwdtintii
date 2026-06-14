@@ -18,10 +18,8 @@ hex_to_rgb() {
 }
 
 cell() {
-  local hex="$1" label="$2" italic="${3:-}"
+  local hex="$1" fg="$2" label="$3" italic="${4:-}"
   read -r r g b < <(hex_to_rgb "$hex")
-  local fg=220   # ghost grey for now
-  if [[ "$label" == "white" ]]; then fg=255; fi
   printf '\e[48;2;%d;%d;%dm\e[38;2;%d;%d;%dm%s %s \e[0m' \
     "$r" "$g" "$b" "$fg" "$fg" "$fg" "$italic" "$label"
 }
@@ -35,9 +33,11 @@ while IFS=$'\t' read -r family s0 s1 s2 s3; do
   [[ -z "$family" || "$family" == "family" || "$family" == \#* ]] && continue
   printf '%-15s' "$family"
   for hex in "$s0" "$s1" "$s2" "$s3"; do
-    cw=$(cell "$hex" "white")
-    cg=$(cell "$hex" "ghost" $'\e[3m')
-    printf '  %s%s %s' "$cw" "$cg" "$hex"
+    # One light + one dark text sample per shade so the dump reads on both a
+    # dark-background palette (light text wins) and a light one (dark wins).
+    cl=$(cell "$hex" 245 "light")
+    cd=$(cell "$hex" 16 "dark" $'\e[3m')
+    printf '  %s%s %s' "$cl" "$cd" "$hex"
   done
   echo
 done < "$PALETTE"

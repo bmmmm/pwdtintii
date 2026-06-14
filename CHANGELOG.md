@@ -21,6 +21,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   / BSD-awk / brew-bash path the project is built around, which the Linux-only
   job never touched — plus a release job that cuts a GitHub Release from the
   matching CHANGELOG section on `v*` tags.
+- **Light-theme palette** (`palettes/light.tsv`) — a pale, high-luminance variant
+  for light terminal themes. It mirrors `default.tsv`'s families and order, so a
+  given directory keeps its hue and only the lightness flips; activate it with
+  `PWDTINTII_PALETTE=~/.local/share/pwdtintii/palettes/light.tsv`. Derived from
+  `default.tsv` by `scripts/gen-light-palette.py` (hue preserved, shades placed
+  on a WCAG-luminance ladder) and verified readable against dark text.
 
 ### Changed
 - CI consolidated into a single `.github/workflows/ci.yml`, read by both
@@ -29,6 +35,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Prompt hot-path: the directory key is cached by `$PWD`, skipping the per-prompt
   subshell fork + git-root stat-walk while the directory is unchanged (a fresh
   `git init` in the current dir is picked up on the next `cd`).
+- `scripts/contrast-check.sh` is now theme-aware: a light-background palette is
+  checked against dark text instead of light (theme auto-detected from mean
+  luminance, or forced with a `dark`/`light` second argument). `scripts/preview.sh`
+  shows each shade against both a light and a dark text sample, so the dump is
+  legible whichever palette it dumps.
 
 ### Fixed
 - Palette loading validates that each family has four `#rrggbb` shades and skips
