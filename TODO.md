@@ -19,8 +19,9 @@ light-terminal-theme palette (`palettes/light.tsv` + `gen-light-palette.py`,
 theme-aware contrast/preview), a dark/light group toggle in the `pt pick`
 picker (ctrl-t), a self-reloading `pt` (auto re-source when the plugin file
 changed on disk, so there is no manual re-source step), and a high-contrast
-picker preview (the fzf preview pane flips to dark text on pale light-palette
-swatches). Suite is 75 green.
+picker on the light palette: the fzf preview pane flips to dark text on pale
+swatches, and the live focus/hover background lifts toward white instead of
+darkening a light terminal theme. Suite is 78 green.
 
 **Verify in Ghostty before release** (the sandbox can't run a live tty): the
 `pt pick` **ctrl-t dark/light toggle is new and unverified** — open `pt pick`,
@@ -43,7 +44,8 @@ release job, after a final `tests/run.sh`.
    - ctrl-t flips the dark↔light group (prompt + swatches change); ENTER from
      the light group switches the shell to light and pins. On the light group
      the preview-pane labels read as dark text on the pale swatches (legible),
-     not washed-out light text.
+     not washed-out light text, and the hover/focus background stays light
+     (lifts toward white) rather than darkening the terminal under your text.
    - Back behaviour: from the menu pick `list` → it prints, then a keypress
      returns you to the menu. q quits the hub; arrow keys / ESC / letters all
      return to the menu (no stray `[A` in the search). ESC steps back one level:
@@ -78,11 +80,11 @@ release job, after a final `tests/run.sh`.
   - [x] Picker preview pane is now high-contrast: text/label tones flip per band
         by perceived luminance (`_pt_text_fg` in `bin/pwdtintii`), dark text on
         pale `light.tsv` swatches. ← erledigt 2026-06-15
-    - [ ] Minor, optional: the live *focus tone* (`emit-family`) still dims
-          shade0 by 50% for the hover background, which on a light terminal theme
-          briefly darkens the real terminal under your (dark) text while you
-          arrow through the picker. The preview pane is the readable surface, so
-          this is cosmetic — only worth a theme-aware dim if it actually annoys.
+    - [x] Live *focus tone* (`emit-family`) is now theme-aware too: dark palette
+          dims the darkest shade toward black (~lum 15-28), light palette lifts
+          the lightest toward white (~lum 242-244) via `_pt_focus_tone`, so the
+          hover background no longer darkens a light terminal theme under the
+          user's dark text. ← erledigt 2026-06-15
 
 ## Design decisions already made
 

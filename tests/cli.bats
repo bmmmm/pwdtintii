@@ -55,6 +55,37 @@ teardown() { teardown_sandbox; }
   [ "$output" = "#000f38" ]
 }
 
+@test "live-preview lift tone is lighter than shade3" {
+  # Mirror of the dim test for light palettes: shade3 #e5eaf6 at 50% toward white.
+  source <(sed -n '/^_pt_lift_hex()/,/^}/p' "$CLI")
+  run _pt_lift_hex "#e5eaf6" 50
+  [ "$status" -eq 0 ]
+  [ "$output" = "#f2f4fa" ]
+}
+
+@test "is-light-hex classifies light vs dark colors" {
+  source <(sed -n '/^_pt_is_light_hex()/,/^}/p' "$CLI")
+  run _pt_is_light_hex "#a8b8e2"   # pale light-palette shade0
+  [ "$status" -eq 0 ]
+  run _pt_is_light_hex "#001f70"   # dark default shade0
+  [ "$status" -eq 1 ]
+}
+
+@test "focus tone dims on the dark palette, lifts on the light one" {
+  # The hover background must not darken a light terminal theme under the user's
+  # dark text: on the light palette it lifts the lightest shade toward white, on
+  # the dark default it keeps dimming the darkest toward black (no regression).
+  source <(sed -n '/^shades_for()/,/^}/p;/^_pt_dim_hex()/,/^}/p;/^_pt_lift_hex()/,/^}/p;/^_pt_is_light_hex()/,/^}/p;/^_pt_focus_tone()/,/^}/p' "$CLI")
+  PALETTE="$PWDTINTII_PALETTE"
+  run _pt_focus_tone blue
+  [ "$status" -eq 0 ]
+  [ "$output" = "#000f38" ]
+  PALETTE="$REPO_ROOT/palettes/light.tsv"
+  run _pt_focus_tone blue
+  [ "$status" -eq 0 ]
+  [ "$output" = "#f2f4fa" ]
+}
+
 @test "preview text tone flips to dark on a light band, light on a dark band" {
   # The picker preview must read on the light palette too: a pale band gets a
   # dim-dark ghost + near-black label, a dark band keeps the light tones (so the

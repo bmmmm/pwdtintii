@@ -55,6 +55,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   text and the shadeN/hex label pick a dark tone on a light band and a light tone
   on a dark one (per-band perceived luminance), so the labels stay legible on the
   pale `light.tsv` swatches reached via `ctrl-t`, not just on the dark default.
+- The live focus background (the terminal tint while you arrow through the
+  picker) is now theme-aware: a dark palette still dims the darkest shade toward
+  black, but a light palette lifts the lightest shade toward white instead of
+  darkening — so on a light terminal theme the hovered background no longer drops
+  to a dark tone under your dark text, while the swatches still stand out.
 
 ### Fixed
 - Palette loading validates that each family has four `#rrggbb` shades and skips
