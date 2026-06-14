@@ -40,7 +40,7 @@ navigation, stale-shell detection), full-height dimmed picker preview, plus the
 ## Open work (small)
 
 - [ ] Demo GIF for README (asciinema → agg, or screen capture)
-- [ ] GitHub public mirror (currently Forgejo-private only)
+- [x] GitHub public mirror — live at github.com/bmmmm/pwdtintii (one-way Forgejo→GitHub, 8h + on-commit) ← erledigt 2026-06-14
 
 ## Open work (medium)
 
