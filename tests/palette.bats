@@ -1,0 +1,75 @@
+#!/usr/bin/env bats
+# Palette data integrity. The light variant must mirror default's family set and
+# order — the hash maps key -> families[hash % N], so reordering would land the
+# same directory on a different family and switching themes would reshuffle every
+# workspace's hue. And every light shade must stay readable against dark text.
+
+load helper
+
+# family names, in file order, one per line.
+fam_column() {
+  awk -F'\t' '$1 != "" && $1 != "family" && $1 !~ /^#/ { print $1 }' "$1"
+}
+
+@test "light.tsv mirrors default.tsv's families in the same order" {
+  [ -f "$REPO_ROOT/palettes/light.tsv" ]
+  d="$(fam_column "$REPO_ROOT/palettes/default.tsv")"
+  l="$(fam_column "$REPO_ROOT/palettes/light.tsv")"
+  [ "$d" = "$l" ]
+}
+
+@test "light.tsv is in sync with its generator (no stale shades)" {
+  # Order-parity above only catches family-level drift; this catches a shade
+  # edited in default.tsv without regenerating light.tsv. Regenerate to a temp
+  # file (never the tracked one) and diff.
+  command -v python3 >/dev/null 2>&1 || skip "python3 not available"
+  tmp="$(mktemp)"
+  python3 "$REPO_ROOT/scripts/gen-light-palette.py" "$tmp" >/dev/null
+  run diff "$REPO_ROOT/palettes/light.tsv" "$tmp"
+  rm -f "$tmp"
+  [ "$status" -eq 0 ]
+}
+
+@test "every light.tsv row is 5 columns of #rrggbb hex" {
+  # Portable: no ERE interval expressions ({6}) — BSD awk support is patchy.
+  run awk -F'\t' '
+    $1 != "" && $1 != "family" && $1 !~ /^#/ {
+      if (NF != 5) { print "cols", $1, NF; bad=1 }
+      for (i=2; i<=5; i++) {
+        h=$i
+        if (h !~ /^#/ || length(h) != 7 || substr(h,2) ~ /[^0-9a-fA-F]/) {
+          print "hex", $1, h; bad=1
+        }
+      }
+    }
+    END { exit bad+0 }
+  ' "$REPO_ROOT/palettes/light.tsv"
+  [ "$status" -eq 0 ]
+}
+
+@test "light.tsv clears WCAG body text against dark foregrounds" {
+  command -v python3 >/dev/null 2>&1 || skip "python3 not available"
+  run "$REPO_ROOT/scripts/contrast-check.sh" "$REPO_ROOT/palettes/light.tsv" light
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"0 unreadable, 0 marginal"* ]]
+}
+
+@test "contrast-check auto-detects the light palette as light" {
+  command -v python3 >/dev/null 2>&1 || skip "python3 not available"
+  run "$REPO_ROOT/scripts/contrast-check.sh" "$REPO_ROOT/palettes/light.tsv"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"theme:   light background"* ]]
+}
+
+@test "contrast-check auto-detects the default palette as dark" {
+  command -v python3 >/dev/null 2>&1 || skip "python3 not available"
+  run "$REPO_ROOT/scripts/contrast-check.sh" "$REPO_ROOT/palettes/default.tsv"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"theme:   dark background"* ]]
+}
+
+@test "contrast-check rejects an invalid theme argument" {
+  run "$REPO_ROOT/scripts/contrast-check.sh" "$REPO_ROOT/palettes/light.tsv" bogus
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"theme must be"* ]]
+}

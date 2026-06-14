@@ -57,8 +57,14 @@ the new release job, after re-running `tests/run.sh` + the smoke test below.
 
 - [ ] fish shell support — `function --on-event fish_prompt`
 - [ ] tmux integration — set per-pane background via `select-pane -P`
-- [ ] Light-theme palette variant — high-luminance background set for users on
-      light terminal themes
+- [x] Light-theme palette variant — `palettes/light.tsv`, generated from
+      `default.tsv` by `scripts/gen-light-palette.py` (same families/order, pale
+      WCAG-readable shades). contrast-check + preview are now theme-aware.
+      ← erledigt 2026-06-14
+  - [ ] Follow-up (needs real-terminal verify): the live fzf picker preview
+        (`bin/pwdtintii cmd_preview_family` / focus tone) still renders light
+        text — on a light palette the preview pane reads poorly though the actual
+        tint is correct. Make the picker preview theme-aware too.
 
 ## Design decisions already made
 
