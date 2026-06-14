@@ -21,6 +21,17 @@ _pwdtintii_self="${${(%):-%x}:A:h}"
 : ${PWDTINTII_SHADES_DIR:="${HOME}/.config/pwdtintii/shades"}
 : ${PWDTINTII_DIR_KEY_FN:=_pwdtintii_default_key}
 
+# Remember the plugin file + its load-time mtime so `pt` can flag a stale shell
+# (file changed on disk after sourcing — re-source or open a new shell to apply).
+# `command stat` forces the external binary (zsh/stat builtin reads -f as an fd).
+_pwdtintii_mtime() { command stat -f %m "$1" 2>/dev/null || command stat -c %Y "$1" 2>/dev/null; }
+_PWDTINTII_PLUGIN_FILE="${_pwdtintii_self}/pwdtintii.plugin.zsh"
+_PWDTINTII_LOADED_MTIME="$(_pwdtintii_mtime "$_PWDTINTII_PLUGIN_FILE")"
+_pwdtintii_is_stale() {
+  local now; now="$(_pwdtintii_mtime "$_PWDTINTII_PLUGIN_FILE")"
+  [[ -n "$now" && -n "$_PWDTINTII_LOADED_MTIME" && "$now" != "$_PWDTINTII_LOADED_MTIME" ]]
+}
+
 typeset -gA _pwdtintii_shades
 typeset -ga _pwdtintii_families
 typeset -gA _pwdtintii_overrides
@@ -330,6 +341,8 @@ pwdtintii() {
 # fzf hub: list every action, preview its description, echo the chosen machine
 # name (field 1). Cancel/empty → no output, the caller returns to the prompt.
 _pwdtintii_menu_pick() {
+  local hdr="now: ${_PWDTINTII_FAMILY:-auto} ${_PWDTINTII_SHADE_IDX:-?} · ENTER run · ESC quit"
+  _pwdtintii_is_stale && hdr="plugin changed — re-source · ${hdr}"
   "${_pwdtintii_self}/bin/pwdtintii" actions \
     | fzf \
         --prompt='pwdtintii > ' \
@@ -339,7 +352,7 @@ _pwdtintii_menu_pick() {
         --with-nth=2 \
         --preview="${_pwdtintii_self}/bin/pwdtintii describe-action {1}" \
         --preview-window=right:55%:wrap \
-        --header="now: ${_PWDTINTII_FAMILY:-auto} ${_PWDTINTII_SHADE_IDX:-?} · ENTER run · ESC quit" \
+        --header="$hdr" \
     | cut -f1
 }
 
@@ -356,15 +369,18 @@ _pwdtintii_hub() {
   done
 }
 
-# Hold a display action's output on screen until a keypress: any key returns to
-# the hub, q or ESC quits it (rc 1). `read -k` reads the controlling terminal
-# directly (it ignores fd redirects), so no `< /dev/tty` is needed here.
+# Hold a display action's output on screen until a keypress: q (or Q) quits the
+# hub (rc 1), any other key returns to the menu. `read -k` reads the controlling
+# terminal directly (it ignores fd redirects), so no `< /dev/tty` is needed.
+# Arrow keys etc. arrive as an ESC-prefixed sequence — drain the tail so it is
+# not fed to the next fzf as a search query.
 _pwdtintii_pause() {
   print -n -- $'\n  \e[2m— any key: back to menu · q: quit —\e[0m ' > /dev/tty
   local k
   read -k1 -s k
   print -- "" > /dev/tty
-  [[ "$k" == q || "$k" == $'\e' ]] && return 1
+  [[ "$k" == [qQ] ]] && return 1
+  [[ "$k" == $'\e' ]] && while read -k1 -s -t 0.05 k; do : ; done
   return 0
 }
 
@@ -372,6 +388,7 @@ _pwdtintii_pause() {
 _pwdtintii_help() {
   print -r -- "pwdtintii — directory-derived terminal tinting"
   print -r -- "  now: ${_PWDTINTII_FAMILY:-?} · shade ${_PWDTINTII_SHADE_IDX:-?}"
+  _pwdtintii_is_stale && print -r -- "  (plugin changed on disk — re-source or open a new shell)"
   print
   print -r -- "  pt                 open the action menu (this list without fzf)"
   print -r -- "  pt pick [family]   pin a color family (live picker)"

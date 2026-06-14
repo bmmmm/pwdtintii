@@ -48,10 +48,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 - **`pt` entry point** — bare `pt` opens an fzf action menu listing every
   command (with a live description in the preview pane); selecting one runs it.
-  The menu loops: after an action it reopens, so display-only actions (`list`,
-  `preview`, `contrast`) pause for a keypress and return to it — ESC at the menu
-  quits to the shell, ESC in the family picker steps back to the menu. The
-  header shows the current family/shade. `pt <cmd>` dispatches directly: `pick`,
+  The menu loops: display-only actions (`list`, `preview`, `contrast`) pause
+  afterwards — q quits the hub, any other key (including arrow keys) returns to
+  the menu. ESC steps back one level: out of the family picker into the menu,
+  out of the menu to the shell. The header shows the current family/shade, and
+  flags a stale shell when the plugin file has changed on disk since it was
+  sourced (`pt help` notes it too). `pt <cmd>` dispatches directly: `pick`,
   `list`, `auto`, `reload`, `preview`, `contrast`, `help`. Without fzf, bare
   `pt` prints a cheat-sheet.
 - `bin/pwdtintii actions` / `describe-action` expose the action catalog — the

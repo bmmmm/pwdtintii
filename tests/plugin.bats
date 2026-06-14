@@ -191,3 +191,19 @@ teardown() { teardown_sandbox; }
   [ "$status" -eq 0 ]
   [[ "$output" == *"families ("* ]]
 }
+
+@test "stale detection: flags a plugin file changed since load" {
+  # Point the staleness check at a throwaway file. Equal mtime → fresh; a
+  # load-time mtime older than the file's actual mtime → stale.
+  run bash_eval / / '
+    mkdir -p "$PWDTINTII_SHADES_DIR"
+    f="$PWDTINTII_SHADES_DIR/fake.plugin"; : > "$f"
+    _PWDTINTII_PLUGIN_FILE="$f"
+    _PWDTINTII_LOADED_MTIME="$(_pwdtintii_mtime "$f")"
+    _pwdtintii_is_stale && echo "unexpected-stale" || echo "fresh-ok"
+    _PWDTINTII_LOADED_MTIME=1
+    _pwdtintii_is_stale && echo "stale-detected" || echo "missed"
+  '
+  [[ "$output" == *"fresh-ok"* ]]
+  [[ "$output" == *"stale-detected"* ]]
+}
