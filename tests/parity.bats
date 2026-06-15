@@ -105,10 +105,11 @@ teardown() { teardown_sandbox; }
   run zsh_eval /testhome /testhome '
     _PWDTINTII_LOADED_MTIME=1            # force staleness
     pwdtintii list >/dev/null 2>&1       # dispatch → self-reload re-sources
-    print "n=${#${(M)precmd_functions:#_pwdtintii_precmd}}"
+    local -a hooks=( "${(@M)precmd_functions:#_pwdtintii_precmd}" )
+    print "n=${#hooks}"                  # element count, not string length
   '
   [ "$status" -eq 0 ]
-  [[ "$output" == *"n=1"* ]]
+  [ "$output" = "n=1" ]
 }
 
 # The `pt` self-reload parse-checks before sourcing in both plugins; plugin.bats
