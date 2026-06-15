@@ -311,49 +311,66 @@ pwdtintii_off() {
 # the bundled dark and light groups, so both stay reachable without listing all
 # of them at once. Propagates fzf's exit code on cancel; the caller restores —
 # emitting from inside $() would be captured.
+#
+# ctrl-t keeps fzf open and reloads the list/preview/header in place (transform →
+# reload+change-preview+change-header) instead of restarting fzf per toggle — the
+# restart was a full-screen redraw that flickered. A state dir carries the active
+# palette so the live-tint focus bind and the committed pick read the current
+# group across toggles. The dark/light step itself lives in bin/ (pick-toggle).
 _pwdtintii_pick_interactive() {
   local dark="${_pwdtintii_self}/palettes/default.tsv"
   local light="${_pwdtintii_self}/palettes/light.tsv"
+  local self="${_pwdtintii_self}/bin/pwdtintii"
   # Offer the toggle only with both bundled palettes in play; a custom
-  # PWDTINTII_PALETTE gets a plain single-group picker.
+  # PWDTINTII_PALETTE gets a plain single-group picker (no ctrl-t).
   local group=dark toggle=1
   [[ "$PWDTINTII_PALETTE" == "$light" ]] && group=light
   if [[ ! -f "$light" || ( "$PWDTINTII_PALETTE" != "$dark" && "$PWDTINTII_PALETTE" != "$light" ) ]]; then
     toggle=0
   fi
-  local grouppal other label hdr out key sel
-  while true; do
-    if (( toggle )); then
-      if [[ "$group" == light ]]; then grouppal="$light"; other=dark; else grouppal="$dark"; other=light; fi
-      label="$group"
-      hdr="↑↓ · ENTER pin · ctrl-t: ${other} theme · ESC cancel"
-    else
-      grouppal="$PWDTINTII_PALETTE"; label=family
-      hdr="↑↓ navigate · ENTER pin · ESC cancel"
-    fi
-    out=$(
-      export PWDTINTII_PALETTE="$grouppal"
-      "$_pwdtintii_self/bin/pwdtintii" list \
-        | fzf \
-            --expect=ctrl-t \
-            --prompt="pick ${label} > " \
-            --height=100% \
-            --reverse \
-            --preview="$_pwdtintii_self/bin/pwdtintii preview-family {}" \
-            --preview-window=right:50%:nowrap \
-            --bind="change:first" \
-            --bind="focus:execute-silent($_pwdtintii_self/bin/pwdtintii emit-family {})" \
-            --header="$hdr"
-    ) || return 1
-    key="${out%%$'\n'*}"
-    sel="${out#*$'\n'}"
-    # ctrl-t always re-loops (never commits the highlight); it flips the group
-    # only when the toggle is active, so it's a harmless redraw otherwise.
-    if [[ "$key" == "ctrl-t" ]]; then (( toggle )) && group="$other"; continue; fi
-    [[ -z "$sel" ]] && return 1
-    print -r -- "${grouppal}"$'\t'"${sel}"
-    return 0
-  done
+
+  local grouppal label hdr
+  if (( toggle )); then
+    local other
+    if [[ "$group" == light ]]; then grouppal="$light"; other=dark; else grouppal="$dark"; other=light; fi
+    label="$group"
+    hdr="↑↓ · ENTER pin · ctrl-t: ${other} theme · ESC cancel"
+  else
+    grouppal="$PWDTINTII_PALETTE"; label=family
+    hdr="↑↓ navigate · ENTER pin · ESC cancel"
+  fi
+
+  local sd; sd="$(mktemp -d "${TMPDIR:-/tmp}/pwdtintii-pick.XXXXXX")"
+  printf '%s\n' "$group" > "$sd/grp"
+  printf '%s\n' "$grouppal" > "$sd/pal"
+
+  # Near-white/near-black header for high contrast against the focused family's
+  # live tint (the picker's bg is the family itself) — see bin/ cmd_pick_color.
+  local hcolor; hcolor="$(PWDTINTII_PALETTE="$grouppal" "$self" pick-color)"
+
+  local -a fzfargs=(
+    --prompt="pick ${label} > "
+    --height=100%
+    --reverse
+    --preview="PWDTINTII_PALETTE=${grouppal} ${self} preview-family {}"
+    --preview-window=right:50%:nowrap
+    --bind="change:first"
+    --bind="focus:execute-silent(PWDTINTII_PALETTE=\"\$(cat ${sd}/pal)\" ${self} emit-family {})"
+    --color="header:${hcolor}:bold"
+    --header="$hdr"
+  )
+  (( toggle )) && fzfargs+=( --bind="ctrl-t:transform(${self} pick-toggle ${sd})" )
+
+  local sel rc
+  sel=$(PWDTINTII_PALETTE="$grouppal" "$self" list | fzf "${fzfargs[@]}")
+  rc=$?
+  # ctrl-t may have switched the group; the committed palette is whatever the
+  # state dir now holds. Read it before removing the dir.
+  grouppal="$(cat "$sd/pal" 2>/dev/null)"
+  rm -rf "$sd"
+  (( rc != 0 )) && return 1
+  [[ -z "$sel" || -z "$grouppal" ]] && return 1
+  print -r -- "${grouppal}"$'\t'"${sel}"
 }
 
 # Numbered-menu fallback when fzf isn't available
