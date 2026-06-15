@@ -49,14 +49,20 @@ _pwdtintii_is_stale() {
 }
 
 # Re-source the plugin into the running shell — the "reload the session" the
-# stale notice used to only tell you to do by hand. Safe to re-run: the
-# PROMPT_COMMAND hook append is guarded against duplicates, re-running recaptures
-# the load-time mtime (so the shell stops reporting stale), and the per-shell
-# state survives — runtime globals (pinned/forced family, shade, disabled,
-# PWD-cache) are left untouched by the boot path, and config like
-# PWDTINTII_PALETTE is kept via `:=`.
+# stale notice used to only tell you to do by hand. Safe to re-run: the prompt
+# hook is registered once behind a one-shot flag (a re-source never re-touches
+# PROMPT_COMMAND), re-running recaptures the load-time mtime (so the shell stops
+# reporting stale), and the per-shell state survives — runtime globals
+# (pinned/forced family, shade, disabled, PWD-cache) are left untouched by the
+# boot path, and config like PWDTINTII_PALETTE is kept via `:=`.
 _pwdtintii_resource() {
   [[ -f "$_PWDTINTII_PLUGIN_FILE" ]] || return 1
+  # Parse-check before sourcing: a reload that lands mid-edit (the file saved
+  # half-written) would otherwise redefine only part of the plugin into the live
+  # shell while still printing normal output, so a broken reload reads as
+  # success. `bash -n` parses without executing; on a syntax error keep the
+  # already-loaded, working definitions. Use this shell's own binary ($BASH).
+  "${BASH:-bash}" -n "$_PWDTINTII_PLUGIN_FILE" 2>/dev/null || return 1
   # shellcheck source=/dev/null  # dynamic self-path; resolved at runtime
   source "$_PWDTINTII_PLUGIN_FILE"
 }
@@ -463,7 +469,11 @@ pwdtintii() {
   # (This running pwdtintii keeps its already-parsed body for this one call, but
   # the actions it dispatches resolve to the freshly defined functions.)
   if _pwdtintii_is_stale; then
-    _pwdtintii_resource && echo "pwdtintii: plugin changed on disk — reloaded this shell" >&2
+    if _pwdtintii_resource; then
+      echo "pwdtintii: plugin changed on disk — reloaded this shell" >&2
+    else
+      echo "pwdtintii: plugin changed on disk but the new version won't parse — keeping the running one" >&2
+    fi
   fi
   local sub="${1:-}"
   case "$sub" in
@@ -564,7 +574,16 @@ if (( ${#_pwdtintii_families[@]} == 0 )); then
   echo "pwdtintii: palette '$PWDTINTII_PALETTE' has no families — tinting disabled" >&2
 fi
 
-if [[ ";${PROMPT_COMMAND:-};" != *";pwdtintii_apply;"* ]]; then
-  PROMPT_COMMAND="${PROMPT_COMMAND:+${PROMPT_COMMAND%;};}pwdtintii_apply"
+# Register the prompt hook exactly once per shell. A self-reload re-sources this
+# file, so a one-shot flag keeps the re-source from appending again: the substring
+# guard below only recognises the form we emit (";pwdtintii_apply"), so a framework
+# that reformats PROMPT_COMMAND — e.g. spacing out the ";" separators — would slip
+# past it and double-register pwdtintii_apply, emitting OSC 11 twice per prompt.
+# zsh gets this for free from add-zsh-hook's exact-membership dedupe.
+if [[ -z "${_PWDTINTII_HOOK_INSTALLED:-}" ]]; then
+  if [[ ";${PROMPT_COMMAND:-};" != *";pwdtintii_apply;"* ]]; then
+    PROMPT_COMMAND="${PROMPT_COMMAND:+${PROMPT_COMMAND%;};}pwdtintii_apply"
+  fi
+  _PWDTINTII_HOOK_INSTALLED=1
 fi
 trap _pwdtintii_release EXIT

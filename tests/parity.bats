@@ -98,6 +98,36 @@ teardown() { teardown_sandbox; }
   [[ "$output" == *"count=37"* ]]
 }
 
+# bash guards the prompt-hook against a self-reload double-append with a one-shot
+# flag; zsh gets it from add-zsh-hook's exact-membership dedupe. Same observable
+# behaviour: a re-source leaves exactly one _pwdtintii_precmd hook registered.
+@test "zsh self-reload keeps a single precmd hook (no double OSC 11)" {
+  run zsh_eval /testhome /testhome '
+    _PWDTINTII_LOADED_MTIME=1            # force staleness
+    pwdtintii list >/dev/null 2>&1       # dispatch → self-reload re-sources
+    print "n=${#${(M)precmd_functions:#_pwdtintii_precmd}}"
+  '
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"n=1"* ]]
+}
+
+# The `pt` self-reload parse-checks before sourcing in both plugins; plugin.bats
+# exercises the bash side, this guards the zsh side.
+@test "zsh self-reload refuses a syntactically broken plugin (keeps the running one)" {
+  run zsh_eval /testhome /testhome '
+    broken="$PWDTINTII_SHADES_DIR/broken.zsh"
+    mkdir -p "$PWDTINTII_SHADES_DIR"
+    printf "pwdtintii_apply() {\n" > "$broken"   # truncated: unterminated function
+    _PWDTINTII_PLUGIN_FILE="$broken"
+    _PWDTINTII_LOADED_MTIME=1                     # force staleness
+    msg=$(pwdtintii list 2>&1 >/dev/null) || true
+    print "$msg"
+    (( $+functions[pwdtintii_apply] )) && print apply-intact || print apply-gone
+  '
+  [[ "$output" == *"won't parse"* ]]
+  [[ "$output" == *"apply-intact"* ]]
+}
+
 # The picker's dark/light toggle commits through _pwdtintii_set_palette in both
 # shells; plugin.bats exercises the bash side, this guards the zsh side.
 @test "zsh set_palette switches the active palette (light shades differ)" {

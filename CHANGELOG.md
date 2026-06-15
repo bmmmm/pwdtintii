@@ -59,12 +59,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   picker) is now theme-aware: a dark palette still dims the darkest shade toward
   black, but a light palette lifts the lightest shade toward white instead of
   darkening — so on a light terminal theme the hovered background no longer drops
-  to a dark tone under your dark text, while the swatches still stand out.
+  to a dark tone under your dark text, while the swatches still stand out. The
+  darkest/lightest shade is chosen by perceived luminance, not palette position,
+  so a palette that orders its shades light-to-dark still tones the right one.
 
 ### Fixed
 - Palette loading validates that each family has four `#rrggbb` shades and skips
   any malformed row with a warning, instead of storing it and silently emitting
   nothing on that family.
+- A self-reload (`pt` re-sourcing a changed plugin) no longer double-registers
+  the bash prompt hook. The append now sits behind a one-shot flag, so a
+  `PROMPT_COMMAND` that a framework has reformatted (spaced-out `;` separators)
+  can't slip past the substring dedupe guard and get `pwdtintii_apply` appended
+  twice — which would emit OSC 11 twice per prompt. zsh was already immune
+  (`add-zsh-hook` dedupes by membership).
+- A self-reload now parse-checks the plugin (`bash -n` / `zsh -n`) before
+  sourcing it, so a reload triggered mid-edit (the file saved half-written) keeps
+  the running definitions and reports the failure, instead of partially
+  redefining the plugin while still looking like it succeeded.
+- `bin/pwdtintii` rejects a malformed shade in a custom palette — the CLI reads
+  the palette unvalidated, unlike the plugin loader — instead of crashing the
+  `16#` hex arithmetic under `set -e`.
 
 ## [0.2.0] — 2026-06-14
 

@@ -64,7 +64,7 @@ teardown() { teardown_sandbox; }
 }
 
 @test "is-light-hex classifies light vs dark colors" {
-  source <(sed -n '/^_pt_is_light_hex()/,/^}/p' "$CLI")
+  source <(sed -n '/^_pt_lum()/,/^}/p;/^_pt_is_light_hex()/,/^}/p' "$CLI")
   run _pt_is_light_hex "#a8b8e2"   # pale light-palette shade0
   [ "$status" -eq 0 ]
   run _pt_is_light_hex "#001f70"   # dark default shade0
@@ -75,7 +75,7 @@ teardown() { teardown_sandbox; }
   # The hover background must not darken a light terminal theme under the user's
   # dark text: on the light palette it lifts the lightest shade toward white, on
   # the dark default it keeps dimming the darkest toward black (no regression).
-  source <(sed -n '/^shades_for()/,/^}/p;/^_pt_dim_hex()/,/^}/p;/^_pt_lift_hex()/,/^}/p;/^_pt_is_light_hex()/,/^}/p;/^_pt_focus_tone()/,/^}/p' "$CLI")
+  source <(sed -n '/^_pt_lum()/,/^}/p;/^_pt_valid_hex()/,/^}/p;/^shades_for()/,/^}/p;/^_pt_dim_hex()/,/^}/p;/^_pt_lift_hex()/,/^}/p;/^_pt_is_light_hex()/,/^}/p;/^_pt_focus_tone()/,/^}/p' "$CLI")
   PALETTE="$PWDTINTII_PALETTE"
   run _pt_focus_tone blue
   [ "$status" -eq 0 ]
@@ -86,17 +86,29 @@ teardown() { teardown_sandbox; }
   [ "$output" = "#f2f4fa" ]
 }
 
+@test "focus tone is order-independent (lifts the lightest even if shades run light→dark)" {
+  # A palette whose four shades run light→dark must still lift its *lightest*
+  # shade (chosen by luminance, not position) so the hover tone sits above all
+  # four. The old position-based code keyed on shade0 and lifted shade3 — here
+  # the darkest — producing a tone below shade0.
+  source <(sed -n '/^_pt_lum()/,/^}/p;/^_pt_valid_hex()/,/^}/p;/^shades_for()/,/^}/p;/^_pt_dim_hex()/,/^}/p;/^_pt_lift_hex()/,/^}/p;/^_pt_is_light_hex()/,/^}/p;/^_pt_focus_tone()/,/^}/p' "$CLI")
+  printf 'reversed\t#e5eaf6\t#d5ddf1\t#c0cbea\t#a8b8e2\n' > "$TEST_HOME/rev.tsv"
+  PALETTE="$TEST_HOME/rev.tsv"
+  run _pt_focus_tone reversed
+  [ "$status" -eq 0 ]
+  [ "$output" = "#f2f4fa" ]   # lift of the lightest (#e5eaf6), not of shade3
+}
+
 @test "preview text tone flips to dark on a light band, light on a dark band" {
   # The picker preview must read on the light palette too: a pale band gets a
   # dim-dark ghost + near-black label, a dark band keeps the light tones (so the
-  # default palette is byte-identical — no regression).
-  source <(sed -n '/^_pt_text_fg()/,/^}/p' "$CLI")
-  run _pt_text_fg 229 234 246   # a pale light-palette shade (lum ~233)
-  [ "$status" -eq 0 ]
-  [ "$output" = "72 72 72 16 16 16" ]
-  run _pt_text_fg 0 31 112      # blue shade0 from the dark default (lum ~26)
-  [ "$status" -eq 0 ]
-  [ "$output" = "220 220 220 235 235 235" ]
+  # default palette is byte-identical — no regression). _pt_text_fg returns via
+  # the _PT_FG global (fork-free on the focus hot path), so assert that directly.
+  source <(sed -n '/^_pt_lum()/,/^}/p;/^_pt_text_fg()/,/^}/p' "$CLI")
+  _pt_text_fg 229 234 246   # a pale light-palette shade (lum ~233)
+  [ "$_PT_FG" = "72 72 72 16 16 16" ]
+  _pt_text_fg 0 31 112      # blue shade0 from the dark default (lum ~26)
+  [ "$_PT_FG" = "220 220 220 235 235 235" ]
 }
 
 @test "preview-family uses high-contrast dark text on the light palette" {
@@ -113,6 +125,22 @@ teardown() { teardown_sandbox; }
   [ "$status" -eq 0 ]
   [[ "$output" == *"38;2;235;235;235"* ]]
   [[ "$output" != *"38;2;16;16;16"* ]]
+}
+
+@test "preview-family rejects a malformed shade instead of crashing" {
+  # A custom palette reaches the CLI unvalidated (only the plugin loader checks),
+  # so a malformed cell must fail loudly — not crash hex_to_rgb's 16#/printf
+  # under set -euo pipefail.
+  printf 'rust\t#aa3300\tNOTHEX\t#cc5522\t#dd6633\n' > "$TEST_HOME/bad.tsv"
+  run env PWDTINTII_PALETTE="$TEST_HOME/bad.tsv" "$CLI" preview-family rust
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"malformed shade"* ]]
+}
+
+@test "emit-family is a no-op on a malformed shade (no set -e crash)" {
+  printf 'rust\t#aa3300\tNOTHEX\t#cc5522\t#dd6633\n' > "$TEST_HOME/bad.tsv"
+  run env PWDTINTII_PALETTE="$TEST_HOME/bad.tsv" "$CLI" emit-family rust
+  [ "$status" -eq 0 ]   # the bad cell short-circuits _pt_focus_tone, no abort
 }
 
 @test "actions lists the seven hub actions, machine name in field 1" {
