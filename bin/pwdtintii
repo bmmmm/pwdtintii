@@ -387,12 +387,14 @@ cmd_view_advance() {
   printf 'change-preview(PWDTINTII_PALETTE=%s %s %s {})\n' "$pal" "$self" "$pcmd"
 }
 
-# Pick the family shade with the most luminance distance from the current tint
-# (the terminal background during the view), so the static header reads clearly
-# while still wearing the family's own palette — per the rule "use the family
-# color with the best contrast to the background". Prints "#rrggbb", or nothing
-# when the shell's family/shade isn't known (a direct CLI call), in which case
-# the caller skips the --color override and fzf uses its default header color.
+# The header color: the current family's own hue, pushed in luminance until it
+# reads against the tinted background. A single family's four shades sit too
+# close in luminance to contrast with one of their own (steel spans ~30-75), so
+# picking a raw shade leaves the header near-invisible. Instead take the family's
+# extreme shade away from the background — lightest on a dark tint, darkest on a
+# light one — and lift/dim it toward white/black for a legible same-family tone.
+# Prints "#rrggbb", or nothing when the shell's family/shade is unknown (a direct
+# CLI call), so the caller skips --color and fzf keeps its default header color.
 _pt_view_header_color() {
   local fam="${PWDTINTII_VIEW_FAMILY:-}" idx="${PWDTINTII_VIEW_SHADE:-0}"
   [[ -z "$fam" ]] && return 0
@@ -406,15 +408,20 @@ _pt_view_header_color() {
   _pt_valid_hex "$bg" || return 0
   local r g b bglum
   read -r r g b < <(hex_to_rgb "$bg"); _pt_lum "$r" "$g" "$b"; bglum=$_PT_LUM
-  local best="" bestd=-1 h hl d
+  # The family's lightest and darkest shade by luminance.
+  local lightest="" darkest="" llum=-1 dlum=256 h hl
   for h in "${hexes[@]}"; do
     _pt_valid_hex "$h" || continue
     read -r r g b < <(hex_to_rgb "$h"); _pt_lum "$r" "$g" "$b"; hl=$_PT_LUM
-    d=$(( hl - bglum )); (( d < 0 )) && d=$(( -d ))
-    if (( d > bestd )); then bestd=$d; best="$h"; fi
+    (( hl > llum )) && { llum=$hl; lightest="$h"; }
+    (( hl < dlum )) && { dlum=$hl; darkest="$h"; }
   done
-  [[ -z "$best" ]] && return 0
-  printf '#%s' "${best#\#}"
+  [[ -z "$lightest" ]] && return 0
+  if (( bglum < 128 )); then
+    _pt_lift_hex "$lightest" 55   # dark tint → bright same-family tone
+  else
+    _pt_dim_hex "$darkest" 45     # light tint → deep same-family tone
+  fi
 }
 
 # view: the merged list+preview browser — the old `list` + `preview` in one. An
