@@ -387,6 +387,36 @@ cmd_view_advance() {
   printf 'change-preview(PWDTINTII_PALETTE=%s %s %s {})\n' "$pal" "$self" "$pcmd"
 }
 
+# Pick the family shade with the most luminance distance from the current tint
+# (the terminal background during the view), so the static header reads clearly
+# while still wearing the family's own palette — per the rule "use the family
+# color with the best contrast to the background". Prints "#rrggbb", or nothing
+# when the shell's family/shade isn't known (a direct CLI call), in which case
+# the caller skips the --color override and fzf uses its default header color.
+_pt_view_header_color() {
+  local fam="${PWDTINTII_VIEW_FAMILY:-}" idx="${PWDTINTII_VIEW_SHADE:-0}"
+  [[ -z "$fam" ]] && return 0
+  local shades; shades=$(shades_for "$fam")
+  [[ -z "$shades" ]] && return 0
+  local -a hexes; read -r -a hexes <<< "$shades"
+  (( ${#hexes[@]} == 0 )) && return 0
+  [[ "$idx" =~ ^[0-9]+$ ]] || idx=0
+  (( idx >= ${#hexes[@]} )) && idx=0
+  local bg="${hexes[idx]}"
+  _pt_valid_hex "$bg" || return 0
+  local r g b bglum
+  read -r r g b < <(hex_to_rgb "$bg"); _pt_lum "$r" "$g" "$b"; bglum=$_PT_LUM
+  local best="" bestd=-1 h hl d
+  for h in "${hexes[@]}"; do
+    _pt_valid_hex "$h" || continue
+    read -r r g b < <(hex_to_rgb "$h"); _pt_lum "$r" "$g" "$b"; hl=$_PT_LUM
+    d=$(( hl - bglum )); (( d < 0 )) && d=$(( -d ))
+    if (( d > bestd )); then bestd=$d; best="$h"; fi
+  done
+  [[ -z "$best" ]] && return 0
+  printf '#%s' "${best#\#}"
+}
+
 # view: the merged list+preview browser — the old `list` + `preview` in one. An
 # fzf picker over the families with a colored preview pane, and one ctrl-t that
 # cycles the pane through swatch/dark, swatch/light, contrast/dark, contrast/light
@@ -434,6 +464,13 @@ cmd_view() {
   local initpal initcmd
   IFS=$'\t' read -r initpal initcmd < <(sed -n '1p' "$sd/states")
 
+  # Paint the header in the best-contrast family shade (bold) so it's legible
+  # against the tinted background, not the dim default. Skipped when the family
+  # is unknown (direct CLI call) → fzf's default header color.
+  local hcolor; hcolor=$(_pt_view_header_color)
+  local -a coloropt=()
+  [[ -n "$hcolor" ]] && coloropt=(--color="header:${hcolor}:bold")
+
   cmd_list | fzf \
       --prompt='view > ' \
       --height=100% \
@@ -443,6 +480,7 @@ cmd_view() {
       --bind='enter:abort' \
       --bind='change:first' \
       --bind="ctrl-t:transform(${self} view-advance ${sd})" \
+      ${coloropt[@]+"${coloropt[@]}"} \
       --header="${statichdr}" \
       >/dev/null || true
 }
