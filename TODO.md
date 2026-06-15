@@ -124,16 +124,19 @@ pwdtintii/
 ├── pwdtintii.plugin.bash   # main bash plugin (4+)
 ├── bin/pwdtintii           # CLI companion (fzf preview helper)
 ├── palettes/
-│   ├── default.tsv         # 37 families × 4 shades
+│   ├── default.tsv         # 37 families × 4 shades (dark themes)
+│   ├── light.tsv           # pale variant for light themes
 │   └── README.md
 ├── scripts/
 │   ├── preview.sh          # visual palette dump
-│   └── contrast-check.sh   # WCAG check
+│   ├── contrast-check.sh   # WCAG check (needs python3)
+│   └── gen-light-palette.py  # regenerates light.tsv from default.tsv
 ├── tests/                  # bats suite coupling bash + zsh
 │   ├── helper.bash
 │   ├── parity.bats         # cross-shell key/family/hash parity
 │   ├── plugin.bats         # bash plugin behaviour
 │   ├── cli.bats            # bin/pwdtintii subcommands
+│   ├── palette.bats        # light.tsv parity + contrast-check
 │   └── run.sh
 ├── .github/workflows/
 │   └── ci.yml              # shellcheck + zsh -n + bats

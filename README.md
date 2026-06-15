@@ -20,7 +20,8 @@ color underneath whatever theme you run, not a theme itself.
 
 Needs a terminal that honors OSC 11 (Ghostty, kitty, WezTerm, Alacritty,
 iTerm2, modern xterm), **zsh** or **bash 4+**, and `shasum`/`sha1sum`. `fzf` is
-optional but powers the menus below (both degrade to a printed list without it).
+optional but powers the menus below (both degrade to a printed list without it);
+`pt contrast` additionally needs `python3`.
 
 ```sh
 git clone https://github.com/bmmmm/pwdtintii ~/.local/share/pwdtintii
@@ -64,8 +65,8 @@ bmmmm/pwdtintii
 
 ## Usage
 
-`pt` is the entry point. Run it bare for an fzf menu of every action, each with
-a live description in the preview pane; pick one and it runs. The menu loops:
+`pt` is the entry point. Run it bare for an fzf menu of the core actions, each
+with a live description in the preview pane; pick one and it runs. The menu loops:
 display-only actions return to it after a keypress (q quits), and ESC steps back
 one level — out of the picker into the menu, out of the menu to the shell. After
 you edit the plugin file, the next `pt` re-sources it automatically — your pinned
@@ -88,8 +89,8 @@ there is no manual re-source step.
 | `pt help`          | this overview |
 
 Short aliases stay as direct accelerators: `ptpick ptlist ptreload ptpreview
-ptcontrast`. Each command also maps to a `pwdtintii_*` function callable without
-the aliases.
+ptcontrast`. Most commands also map to a `pwdtintii_*` function (e.g.
+`pwdtintii_pick`, `pwdtintii_list`) callable without the aliases.
 
 ## Configuration
 
