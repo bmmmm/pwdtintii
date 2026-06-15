@@ -177,6 +177,25 @@ teardown() { teardown_sandbox; }
   done
 }
 
+@test "preview is a back-compat alias for view (not the deleted preview.sh)" {
+  # scripts/preview.sh is gone; `pt preview` must route to `pt view`. Stub fzf so
+  # view can't open a real picker, then assert no 'unknown command', no missing-
+  # file error from the old path, and a clean exit.
+  local stub="$TEST_HOME/bin"; mkdir -p "$stub"
+  printf '%s\n' '#!/bin/sh' 'cat >/dev/null 2>&1; exit 0' > "$stub/fzf"; chmod +x "$stub/fzf"
+  local out
+  out=$(PT_REPO="$REPO_ROOT" PT_PAL="$PWDTINTII_PALETTE" PT_SH="$PWDTINTII_SHADES_DIR" PT_STUB="$stub" \
+    "$BASH4" -c '
+      export PWDTINTII_PALETTE="$PT_PAL" PWDTINTII_SHADES_DIR="$PT_SH" PATH="$PT_STUB:$PATH"
+      source "$PT_REPO/pwdtintii.plugin.bash" 2>/dev/null
+      pwdtintii preview </dev/null 2>&1
+      echo "rc=$?"') || true
+  [[ "$out" != *"unknown command"* ]]
+  [[ "$out" != *"No such file"* ]]
+  [[ "$out" != *"unbound variable"* ]]
+  [[ "$out" == *"rc=0"* ]]
+}
+
 @test "hub: runs the picked action, loops, then exits on an empty pick" {
   # Drive _pwdtintii_hub with a stubbed menu (no fzf/tty needed): the first
   # pick is 'list', the second is empty to end the loop; pause is stubbed to
