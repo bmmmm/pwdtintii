@@ -5,7 +5,7 @@ background shifts to a color derived from it; every split/pane in the same dir
 gets a distinct shade. Deterministic, no daemon, no persisted state,
 terminal-agnostic via OSC 11.
 
-Status: 0.2.0 · alpha · zsh + bash 4+
+Status: 0.3.0 · alpha · zsh + bash 4+
 
 ![pt pick — live family picker with per-shade preview](docs/picker.png)
 

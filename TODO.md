@@ -4,41 +4,31 @@ Entry point for picking up work. Read this first, then pick a section.
 
 ## Status
 
-0.2.0 — released 2026-06-14 (`v0.2.0`). The `pt` action hub (looping menu, back
-navigation, stale-shell detection), full-height dimmed picker preview, plus the
-0.1.x bash/zsh drift fixes — locked down with a 48-test bats suite + Forgejo CI
-(see CHANGELOG). Still alpha. Dotfiles already source the plugin (`~/.zshrc`).
+0.3.0 — released 2026-06-15 (`v0.3.0`). Adds `pt off`, `pt doctor`, a
+light-terminal palette (`light.tsv`) + ctrl-t picker toggle, a self-reloading
+`pt`, a PWD-cached prompt hot-path, palette validation, macOS CI, and the public
+GitHub mirror (full list in CHANGELOG). Locked down with an 85-test bats suite.
+Still alpha. Dotfiles already source the plugin (`~/.zshrc`).
 
 ## Next session — start here
 
-0.2.0 is shipped (`v0.2.0`) and live on the public GitHub mirror. Unreleased
-since (see CHANGELOG): GitHub mirror, macOS CI matrix + release job, `pt off`
-(real disable + OSC 111 reset), `pt doctor`, PWD-cached prompt hot-path, palette
-validation, plugin-manager install docs, `pt pick auto` unpin fix, a
-light-terminal-theme palette (`palettes/light.tsv` + `gen-light-palette.py`,
-theme-aware contrast/preview), a dark/light group toggle in the `pt pick`
-picker (ctrl-t), a self-reloading `pt` (auto re-source when the plugin file
-changed on disk, so there is no manual re-source step), and a high-contrast
-picker on the light palette: the fzf preview pane flips to dark text on pale
-swatches, and the live focus/hover background lifts toward white instead of
-darkening a light terminal theme.
+0.3.0 is tagged (`v0.3.0`). Two live checks the sandbox couldn't run remain:
 
-A `/code-review max` pass then hardened that new surface: the bash prompt-hook
-self-reload no longer double-registers (one-shot flag; zsh was already immune via
-`add-zsh-hook`), self-reload parse-checks (`bash -n` / `zsh -n`) before sourcing
-a possibly mid-edit file, the focus tone picks darkest/lightest by luminance
-instead of palette position, and `bin/pwdtintii` rejects a malformed custom-
-palette shade instead of crashing under `set -e`. Suite is 85 green, verified on
-a real shell (under the command sandbox the `zsh pick_shade skips a live PID`
-test reads red because `kill -0` is blocked there, not a real failure).
+1. **ctrl-t dark/light toggle** — shipped unverified (no live tty in the
+   sandbox). Open `pt pick`, press ctrl-t to flip groups (header + swatches
+   change), ENTER from the light group, confirm the shell switches to light and
+   pins. On the light group the preview-pane labels read as dark text on the
+   pale swatches, and the hover/focus background stays light (lifts toward
+   white). (Already verified earlier: `pt doctor` → osc 11 "supported", `pt off`
+   resets the background, `pt pick` re-enables.)
+2. **CI + release** — `v0.3.0` is the first real run of the release job. The
+   workflow now pins `actions/checkout@v4` (the act-based Forgejo runner has no
+   node24 runtime for `@v5`). Confirm the Forgejo run is green and that a
+   matching GitHub Release was cut from the CHANGELOG `[0.3.0]` section.
 
-**Verify in Ghostty before release** (the sandbox can't run a live tty): the
-`pt pick` **ctrl-t dark/light toggle is new and unverified** — open `pt pick`,
-press ctrl-t to flip groups (header + swatches change), ENTER from the light
-group, confirm the shell switches to light and pins. (Already verified earlier:
-`pt doctor` → osc 11 "supported", `pt off` resets the background, `pt pick`
-re-enables.) Then cut the next tag (`v0.3.0`) to exercise the still-untested
-release job, after a final `tests/run.sh`.
+The 85-test suite is green on a real shell (under the command sandbox the `zsh
+pick_shade skips a live PID` test reads red because `kill -0` is blocked there,
+not a real failure).
 
 ## Release smoke test (fresh Ghostty)
 
