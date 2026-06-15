@@ -217,6 +217,23 @@ teardown() { teardown_sandbox; }
   [[ "$output" == *"bg+:#161a1f"* ]]
 }
 
+@test "view exits cleanly and removes its tempdir (fzf stubbed)" {
+  # Regression: cmd_view cleaned its tempdir via an EXIT trap over a `local sd`,
+  # which fires after the function returns — under set -u that aborted with
+  # 'sd: unbound variable' on exit and leaked the dir. With fzf stubbed to exit 0
+  # the full mktemp+pipeline path runs, then the script exits: assert no
+  # unbound-var error and no net new pwdtintii-view.* dir.
+  local stub="$TEST_HOME/bin"; mkdir -p "$stub"
+  printf '%s\n' '#!/bin/sh' 'cat >/dev/null 2>&1; exit 0' > "$stub/fzf"; chmod +x "$stub/fzf"
+  local before after
+  before=$(find "${TMPDIR:-/tmp}" -maxdepth 1 -name 'pwdtintii-view.*' 2>/dev/null | wc -l | tr -d ' ')
+  run env PATH="$stub:$PATH" PWDTINTII_VIEW_FAMILY=blue PWDTINTII_VIEW_SHADE=0 "$CLI" view
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"unbound variable"* ]]
+  after=$(find "${TMPDIR:-/tmp}" -maxdepth 1 -name 'pwdtintii-view.*' 2>/dev/null | wc -l | tr -d ' ')
+  [ "$after" -le "$before" ]
+}
+
 # ── scripts smoke (contrast) ─────────────────────────────────────────────────
 # Ships as `pt contrast`; CI only shellchecked it before.
 

@@ -469,7 +469,6 @@ cmd_view() {
   # State table: one "palette<TAB>preview-cmd" line per cycle step. cmd_view_advance
   # steps the index on each ctrl-t; the banner inside each preview names the state.
   local sd; sd="$(mktemp -d "${TMPDIR:-/tmp}/pwdtintii-view.XXXXXX")"
-  trap 'rm -rf "$sd"' EXIT INT TERM
   printf '0\n' > "$sd/idx"
   {
     if (( bundled )); then
@@ -509,6 +508,11 @@ cmd_view() {
       --color="$colorspec" \
       --header="${statichdr}" \
       >/dev/null || true
+  # Clean up inline (not via an EXIT trap): the trap fires after this function
+  # returns, where `local sd` is out of scope — under set -u that aborts the
+  # script with "sd: unbound variable" before rm runs, leaking the dir. fzf
+  # absorbs ctrl-c itself, so control returns here either way. Mirrors the picker.
+  rm -rf "$sd"
 }
 
 # ── Picker / viewer fzf chrome: high-contrast menus over the live tint ───────
