@@ -437,6 +437,11 @@ pwdtintii_doctor() {
   else
     echo "  fzf:          missing (menus fall back to a printed list)"
   fi
+  if command -v python3 >/dev/null 2>&1; then
+    echo "  python3:      found (pt contrast enabled)"
+  else
+    echo "  python3:      missing (pt contrast unavailable)"
+  fi
   echo "  palette:      $PWDTINTII_PALETTE (${#_pwdtintii_families[@]} families)"
   echo "  state:        family=${_PWDTINTII_FAMILY:-auto} shade=${_PWDTINTII_SHADE_IDX:-?} disabled=${_PWDTINTII_DISABLED:-0}"
   echo "  terminal:     TERM=${TERM:-?} COLORTERM=${COLORTERM:-?} TERM_PROGRAM=${TERM_PROGRAM:-?}"
