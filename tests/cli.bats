@@ -206,7 +206,9 @@ teardown() { teardown_sandbox; }
 @test "fzf-theme emits a high-contrast color spec for the dark palette" {
   run "$CLI" fzf-theme
   [ "$status" -eq 0 ]
-  [[ "$output" == *"bg+:#e9ecf0"* ]]          # focused-line pill
+  [[ "$output" == *"bg+:#4d5563"* ]]            # focused-row block, not the HI text tone
+  [[ "$output" != *"bg+:#e9ecf0"* ]]            # a HI pill over the --ansi HI rows = invisible box
+  [[ "$output" == *"pointer:#e9ecf0:bold"* ]]   # accents are HI, legible over the tint
   [[ "$output" == *"header:#e9ecf0:bold"* ]]
 }
 
@@ -214,7 +216,9 @@ teardown() { teardown_sandbox; }
   run env PWDTINTII_PALETTE="$REPO_ROOT/palettes/light.tsv" "$CLI" fzf-theme
   [ "$status" -eq 0 ]
   [[ "$output" == *"header:#161a1f:bold"* ]]
-  [[ "$output" == *"bg+:#161a1f"* ]]
+  [[ "$output" == *"bg+:#9ba2ac"* ]]            # focused-row block, dark enough for HI text
+  [[ "$output" == *"pointer:#161a1f:bold"* ]]   # accents are near-black, not near-white
+  [[ "$output" != *"#f0f2f5"* ]]                # the old near-white accent vanished on light
 }
 
 @test "view exits cleanly and removes its tempdir (fzf stubbed)" {
@@ -232,6 +236,21 @@ teardown() { teardown_sandbox; }
   [[ "$output" != *"unbound variable"* ]]
   after=$(find "${TMPDIR:-/tmp}" -maxdepth 1 -name 'pwdtintii-view.*' 2>/dev/null | wc -l | tr -d ' ')
   [ "$after" -le "$before" ]
+}
+
+@test "view-advance swaps the preview and forces an immediate refresh" {
+  # Regression: ctrl-t emitted change-preview alone, so fzf kept the cached render
+  # for the focused item until the next arrow key (the visible lag). refresh-preview
+  # re-runs the new preview command now. Also advances + wraps the cycle index.
+  local sd="$TEST_HOME/vstate"; mkdir -p "$sd"
+  printf '0\n' > "$sd/idx"
+  printf '%s\tpreview-family\n%s\tpreview-contrast\n' \
+    "$REPO_ROOT/palettes/default.tsv" "$REPO_ROOT/palettes/light.tsv" > "$sd/states"
+  run "$CLI" view-advance "$sd"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"change-preview("* ]]
+  [[ "$output" == *"+refresh-preview"* ]]
+  [ "$(cat "$sd/idx")" -eq 1 ]
 }
 
 # ── scripts smoke (contrast) ─────────────────────────────────────────────────

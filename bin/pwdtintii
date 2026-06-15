@@ -388,7 +388,10 @@ cmd_palette_for() {
 # by cmd_view), advances the index (wrapping), and prints the fzf action that
 # repaints the preview pane. Only the preview changes on ctrl-t — the mode/theme
 # label lives in the pane's banner (_pt_preview_banner), the left header stays
-# static. Internal: fzf calls it through transform(), not a user subcommand.
+# static. change-preview swaps the command; refresh-preview then forces it to run
+# now — without it fzf keeps the cached render for the current item until the next
+# focus move, so the pane only updated after an arrow key. Internal: fzf calls it
+# through transform(), not a user subcommand.
 cmd_view_advance() {
   local sd="$1"
   local idx n line pal pcmd self
@@ -400,7 +403,7 @@ cmd_view_advance() {
   line=$(sed -n "$(( idx + 1 ))p" "$sd/states")
   IFS=$'\t' read -r pal pcmd <<< "$line"
   self="${SELF_DIR}/pwdtintii"
-  printf 'change-preview(PWDTINTII_PALETTE=%s %s %s {})\n' "$pal" "$self" "$pcmd"
+  printf 'change-preview(PWDTINTII_PALETTE=%s %s %s {})+refresh-preview\n' "$pal" "$self" "$pcmd"
 }
 
 # The header color: the current family's own hue, pushed in luminance until it
@@ -493,7 +496,7 @@ cmd_view() {
   _pt_ui_tone
   local hcolor; hcolor=$(_pt_view_header_color)
   [[ -z "$hcolor" ]] && hcolor="$_PT_UI_HI"
-  local colorspec; colorspec=$(_pt_fzf_colors "$_PT_UI_HI" "$_PT_UI_LO" "$_PT_UI_DIM" "$hcolor")
+  local colorspec; colorspec=$(_pt_fzf_colors "$_PT_UI_HI" "$_PT_UI_DIM" "$_PT_UI_SEL" "$hcolor")
 
   cmd_list_menu | fzf \
       --ansi \
@@ -555,27 +558,33 @@ _pt_palette_is_light() {
   (( mean >= 128 ))
 }
 
-# Set the menu tone triple for the active palette: _PT_UI_HI is the legible
-# foreground (contrasts the tint), _PT_UI_LO its inverse (the focused-line pill's
-# text + the pointer on it), _PT_UI_DIM a muted HI for the match counter.
+# Set the menu tone for the active palette: _PT_UI_HI is the legible foreground
+# and every accent (it contrasts the tint — light on a dark palette, dark on a
+# light one), _PT_UI_DIM a muted HI for the match counter, _PT_UI_SEL the
+# focused-row background — a block on the tint's own side that HI text still reads
+# on (see _pt_fzf_colors for why it can't be an inverted pill).
 _pt_ui_tone() {
   if _pt_palette_is_light; then
-    _PT_UI_HI='#161a1f'; _PT_UI_LO='#f0f2f5'; _PT_UI_DIM='#454b52'
+    _PT_UI_HI='#161a1f'; _PT_UI_DIM='#454b52'; _PT_UI_SEL='#9ba2ac'
   else
-    _PT_UI_HI='#e9ecf0'; _PT_UI_LO='#13171c'; _PT_UI_DIM='#9aa3ad'
+    _PT_UI_HI='#e9ecf0'; _PT_UI_DIM='#9aa3ad'; _PT_UI_SEL='#4d5563'
   fi
 }
 
-# Assemble an fzf --color value: hi=foreground, lo=focused-line pill text, dim=
-# counter, hdr=header. The focused line is a solid hi pill (bg+) with lo text, so
-# it stays readable whichever way a later ctrl-t flips the tint. bg is never set
-# and gutter is transparent, so the OSC-11 tint shows through the menu; the list
-# rows carry their own color via --ansi (cmd_list_menu), which a ctrl-t reload can
-# reflow in place — a static --color cannot recolor at runtime.
+# Assemble an fzf --color value: hi=foreground and every accent (pointer, prompt,
+# marker, match highlight), dim=match counter, sel=focused-row background, hdr=
+# header. The focused row is a sel block under HI text, not an inverted pill:
+# with --ansi the list rows carry their own HI foreground (cmd_list_menu) and fzf
+# keeps that per-line color over fg+, so a HI pill (bg+=HI) would paint HI text on
+# a HI background and vanish — the unreadable box. sel is a tone on the tint's own
+# side that HI still reads on; fg+ is set to HI too so it holds whichever way fzf
+# resolves the precedence. bg is never set and gutter is transparent, so the
+# OSC-11 tint shows through; a ctrl-t reload reflows the list in place where a
+# static --color cannot recolor at runtime.
 _pt_fzf_colors() {
-  local hi="$1" lo="$2" dim="$3" hdr="$4"
-  printf 'gutter:-1,fg+:%s:bold,bg+:%s,hl:%s:underline,hl+:%s:underline,pointer:%s:bold,marker:%s,prompt:%s:bold,info:%s,spinner:%s,query:%s,header:%s:bold\n' \
-    "$lo" "$hi" "$hi" "$lo" "$lo" "$lo" "$hi" "$dim" "$hi" "$hi" "$hdr"
+  local hi="$1" dim="$2" sel="$3" hdr="$4"
+  printf 'gutter:-1,fg+:%s:bold,bg+:%s,hl:%s:underline,hl+:%s:underline,pointer:%s:bold,marker:%s:bold,prompt:%s:bold,info:%s,spinner:%s,query:%s,header:%s:bold\n' \
+    "$hi" "$sel" "$hi" "$hi" "$hi" "$hi" "$hi" "$dim" "$hi" "$hi" "$hdr"
 }
 
 # fzf-theme: the picker's full --color value. The header is the same neutral
@@ -584,7 +593,7 @@ _pt_fzf_colors() {
 # reliable contrast here. Classifies by mean luminance, so a custom palette works.
 cmd_fzf_theme() {
   _pt_ui_tone
-  _pt_fzf_colors "$_PT_UI_HI" "$_PT_UI_LO" "$_PT_UI_DIM" "$_PT_UI_HI"
+  _pt_fzf_colors "$_PT_UI_HI" "$_PT_UI_DIM" "$_PT_UI_SEL" "$_PT_UI_HI"
 }
 
 # pick-toggle <statedir>: the ctrl-t step of the picker. Flips the active group
