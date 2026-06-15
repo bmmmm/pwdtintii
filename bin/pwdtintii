@@ -353,6 +353,22 @@ cmd_list() {
   awk -F'\t' '$1 != "" && $1 != "family" && $1 !~ /^#/ { print $1 }' "$PALETTE"
 }
 
+# Like list, but each family carries a high-contrast SGR foreground for the fzf
+# menus (run with --ansi). Recomputed from PWDTINTII_PALETTE on every call, so the
+# picker's ctrl-t reload reflows the list dark<->light in place: fzf re-reads
+# per-line ANSI colors on a reload, where a static --color stays fixed for the
+# whole session. `list` itself stays plain (scripts + the no-fzf fallback parse it).
+cmd_list_menu() {
+  _pt_ui_tone
+  local r g b
+  read -r r g b < <(hex_to_rgb "$_PT_UI_HI")
+  local sgr rst
+  sgr=$(printf '\033[38;2;%s;%s;%sm' "$r" "$g" "$b")
+  rst=$(printf '\033[0m')
+  awk -F'\t' -v sgr="$sgr" -v rst="$rst" \
+    '$1 != "" && $1 != "family" && $1 !~ /^#/ { print sgr $1 rst }' "$PALETTE"
+}
+
 cmd_palette() {
   echo "$PALETTE"
 }
@@ -471,14 +487,17 @@ cmd_view() {
   local initpal initcmd
   IFS=$'\t' read -r initpal initcmd < <(sed -n '1p' "$sd/states")
 
-  # Paint the header in the best-contrast family shade (bold) so it's legible
-  # against the tinted background, not the dim default. Skipped when the family
-  # is unknown (direct CLI call) → fzf's default header color.
+  # High-contrast menu over the tint (see _pt_fzf_colors): light text on the dark
+  # palette, dark on the light one, the family list colored per-line via --ansi.
+  # The header keeps the current family's own hue (a legible same-family tone) when
+  # the shell passed it, falling back to the neutral foreground otherwise.
+  _pt_ui_tone
   local hcolor; hcolor=$(_pt_view_header_color)
-  local -a coloropt=()
-  [[ -n "$hcolor" ]] && coloropt=(--color="header:${hcolor}:bold")
+  [[ -z "$hcolor" ]] && hcolor="$_PT_UI_HI"
+  local colorspec; colorspec=$(_pt_fzf_colors "$_PT_UI_HI" "$_PT_UI_LO" "$_PT_UI_DIM" "$hcolor")
 
-  cmd_list | fzf \
+  cmd_list_menu | fzf \
+      --ansi \
       --prompt='view > ' \
       --height=100% \
       --reverse \
@@ -487,24 +506,28 @@ cmd_view() {
       --bind='enter:abort' \
       --bind='change:first' \
       --bind="ctrl-t:transform(${self} view-advance ${sd})" \
-      ${coloropt[@]+"${coloropt[@]}"} \
+      --color="$colorspec" \
       --header="${statichdr}" \
       >/dev/null || true
 }
 
-# ── Picker support: flicker-free dark/light toggle ───────────────────────────
+# ── Picker / viewer fzf chrome: high-contrast menus over the live tint ───────
 # The picker (the plugin's _pwdtintii_pick_interactive) used to restart fzf on
-# every ctrl-t — a full screen redraw that flickered. These two helpers let it
+# every ctrl-t — a full screen redraw that flickered. The helpers below let it
 # keep fzf open and repaint in place instead, the same transform() technique as
 # the viewer above. The plugin keeps the committed-pick + live-tint logic.
+#
+# Both menus sit on a background the tool tints via OSC 11 (the picker per
+# keystroke, the viewer to the shell's current family), and fzf otherwise inherits
+# the terminal's ANSI foreground — which has no guaranteed contrast against an
+# arbitrary tint, so the list rendered dim/illegible. These helpers paint the menu
+# in a tone that contrasts the tint: light text on a dark palette (its tints are
+# dark), dark text on a light one.
 
-# pick-color: the picker header's color. Near-white on a dark palette, near-black
-# on a light one — guaranteed contrast against ANY family's live tint. The picker
-# tints the background to the *focused* family, which changes on every keystroke,
-# so a family-hued header (like the viewer's, where the family is fixed) would
-# have no reliable contrast; a neutral high-contrast tone always reads. Classifies
-# by the palette's mean shade luminance, so a custom palette is handled too.
-cmd_pick_color() {
+# True when the palette's mean shade luminance reads light (>= 128) — picks the
+# menu tone direction. One awk pass; off the per-keystroke focus path (only menu
+# setup + the ctrl-t reload reach it).
+_pt_palette_is_light() {
   local mean
   mean=$(awk -F'\t' '
     function hexval(s,    v, i, c) {
@@ -525,7 +548,39 @@ cmd_pick_color() {
     }
     END { if (n > 0) printf "%d", sum / n; else print 128 }
   ' "$PALETTE")
-  if (( mean >= 128 )); then printf '#161a1f\n'; else printf '#e9ecf0\n'; fi
+  (( mean >= 128 ))
+}
+
+# Set the menu tone triple for the active palette: _PT_UI_HI is the legible
+# foreground (contrasts the tint), _PT_UI_LO its inverse (the focused-line pill's
+# text + the pointer on it), _PT_UI_DIM a muted HI for the match counter.
+_pt_ui_tone() {
+  if _pt_palette_is_light; then
+    _PT_UI_HI='#161a1f'; _PT_UI_LO='#f0f2f5'; _PT_UI_DIM='#454b52'
+  else
+    _PT_UI_HI='#e9ecf0'; _PT_UI_LO='#13171c'; _PT_UI_DIM='#9aa3ad'
+  fi
+}
+
+# Assemble an fzf --color value: hi=foreground, lo=focused-line pill text, dim=
+# counter, hdr=header. The focused line is a solid hi pill (bg+) with lo text, so
+# it stays readable whichever way a later ctrl-t flips the tint. bg is never set
+# and gutter is transparent, so the OSC-11 tint shows through the menu; the list
+# rows carry their own color via --ansi (cmd_list_menu), which a ctrl-t reload can
+# reflow in place — a static --color cannot recolor at runtime.
+_pt_fzf_colors() {
+  local hi="$1" lo="$2" dim="$3" hdr="$4"
+  printf 'gutter:-1,fg+:%s:bold,bg+:%s,hl:%s:underline,hl+:%s:underline,pointer:%s:bold,marker:%s,prompt:%s:bold,info:%s,spinner:%s,query:%s,header:%s:bold\n' \
+    "$lo" "$hi" "$hi" "$lo" "$lo" "$lo" "$hi" "$dim" "$hi" "$hi" "$hdr"
+}
+
+# fzf-theme: the picker's full --color value. The header is the same neutral
+# high-contrast tone as the body — the picker tints to the *focused* family
+# (changing per keystroke), so unlike the fixed-family viewer a family hue has no
+# reliable contrast here. Classifies by mean luminance, so a custom palette works.
+cmd_fzf_theme() {
+  _pt_ui_tone
+  _pt_fzf_colors "$_PT_UI_HI" "$_PT_UI_LO" "$_PT_UI_DIM" "$_PT_UI_HI"
 }
 
 # pick-toggle <statedir>: the ctrl-t step of the picker. Flips the active group
@@ -542,7 +597,7 @@ cmd_pick_toggle() {
   printf '%s\n' "$newpal" > "$sd/pal"
   self="${SELF_DIR}/pwdtintii"
   local hdr="↑↓ · ENTER pin · ctrl-t: ${other} theme · ESC cancel"
-  printf 'reload(PWDTINTII_PALETTE=%s %s list)+change-preview(PWDTINTII_PALETTE=%s %s preview-family {})+change-header(%s)\n' \
+  printf 'reload(PWDTINTII_PALETTE=%s %s list-menu)+change-preview(PWDTINTII_PALETTE=%s %s preview-family {})+change-header(%s)\n' \
     "$newpal" "$self" "$newpal" "$self" "$hdr"
 }
 
@@ -613,7 +668,7 @@ shift || true
 case "$cmd" in
   view)             cmd_view ;;
   view-advance)     cmd_view_advance "${1:-}" ;;
-  pick-color)       cmd_pick_color ;;
+  fzf-theme)        cmd_fzf_theme ;;
   pick-toggle)      cmd_pick_toggle "${1:-}" ;;
   preview-family)   cmd_preview_family "${1:-}" ;;
   preview-contrast) cmd_preview_contrast "${1:-}" ;;
@@ -621,6 +676,7 @@ case "$cmd" in
   actions)          cmd_actions ;;
   describe-action)  cmd_describe_action "${1:-}" ;;
   list)             cmd_list ;;
+  list-menu)        cmd_list_menu ;;
   palette)          cmd_palette ;;
   palette-for)      cmd_palette_for "${1:-}" ;;
   *)

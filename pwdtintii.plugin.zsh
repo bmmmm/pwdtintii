@@ -344,11 +344,14 @@ _pwdtintii_pick_interactive() {
   printf '%s\n' "$group" > "$sd/grp"
   printf '%s\n' "$grouppal" > "$sd/pal"
 
-  # Near-white/near-black header for high contrast against the focused family's
-  # live tint (the picker's bg is the family itself) — see bin/ cmd_pick_color.
-  local hcolor; hcolor="$(PWDTINTII_PALETTE="$grouppal" "$self" pick-color)"
+  # High-contrast menu over the focused family's live tint: the list carries its
+  # own color per-line (list-menu + --ansi) so ctrl-t's reload reflows it
+  # dark<->light in place, and --color paints the chrome (a static --color can't
+  # recolor at runtime). See bin/ cmd_fzf_theme / cmd_list_menu.
+  local colorspec; colorspec="$(PWDTINTII_PALETTE="$grouppal" "$self" fzf-theme)"
 
   local -a fzfargs=(
+    --ansi
     --prompt="pick ${label} > "
     --height=100%
     --reverse
@@ -356,13 +359,13 @@ _pwdtintii_pick_interactive() {
     --preview-window=right:50%:nowrap
     --bind="change:first"
     --bind="focus:execute-silent(PWDTINTII_PALETTE=\"\$(cat ${sd}/pal)\" ${self} emit-family {})"
-    --color="header:${hcolor}:bold"
+    --color="$colorspec"
     --header="$hdr"
   )
   (( toggle )) && fzfargs+=( --bind="ctrl-t:transform(${self} pick-toggle ${sd})" )
 
   local sel rc
-  sel=$(PWDTINTII_PALETTE="$grouppal" "$self" list | fzf "${fzfargs[@]}")
+  sel=$(PWDTINTII_PALETTE="$grouppal" "$self" list-menu | fzf "${fzfargs[@]}")
   rc=$?
   # ctrl-t may have switched the group; the committed palette is whatever the
   # state dir now holds. Read it before removing the dir.
