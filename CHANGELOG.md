@@ -5,6 +5,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-06-15
+
 ### Added
 - Public GitHub mirror at github.com/bmmmm/pwdtintii — one-way Forgejo→GitHub
   push-mirror, so the project can now be cloned from GitHub.
@@ -12,9 +14,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   default (OSC 111) and makes the prompt hook a no-op until re-enabled via
   `pt pick` / `pt auto` / `pt reload`. Previously `off` was only an alias for
   `auto`/unpin and kept tinting by directory.
-- **`pt doctor`** — reports the setup (hash command, fzf, palette, terminal) and
-  probes OSC 11 support live, surfacing the otherwise-silent failure mode of a
-  terminal that ignores OSC 11.
+- **`pt doctor`** — reports the setup (hash command, fzf, python3, palette,
+  terminal) and probes OSC 11 support live, surfacing the otherwise-silent
+  failure mode of a terminal that ignores OSC 11. The python3 line flags when
+  `pt contrast` is unavailable for lack of its only dependency.
 - Install via a plugin manager (oh-my-zsh / zinit / antidote), documented in the
   README — the `pwdtintii.plugin.zsh` naming already followed the convention.
 - macOS coverage in CI (`macos-latest`) — exercises the BSD `stat -f` / `shasum`
@@ -41,7 +44,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   leaving the re-source to you. Re-sourcing is safe to repeat: the prompt hook
   registration dedupes and runtime state lives in globals the load path preserves.
 - CI consolidated into a single `.github/workflows/ci.yml`, read by both
-  Forgejo (source of truth) and GitHub (mirror); the `.forgejo/` copy was removed.
+  Forgejo (source of truth) and GitHub (mirror); the `.forgejo/` copy was
+  removed. `actions/checkout` is pinned to v4 (node20) so the act-based Forgejo
+  runner, which has no node24 runtime for checkout@v5, runs it too.
 - Install URL and copyright now reference the public GitHub identity.
 - Prompt hot-path: the directory key is cached by `$PWD`, skipping the per-prompt
   subshell fork + git-root stat-walk while the directory is unchanged (a fresh
