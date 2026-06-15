@@ -5,6 +5,30 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **`pt view`** — a merged list+preview browser: an fzf picker over the families
+  with a colored preview pane that `ctrl-t` cycles through swatch and contrast
+  views across the dark and light palettes. Read-only — it previews; `pt pick`
+  pins. Reachable from the `pt` menu and as `ptview`.
+- **APCA in `pt contrast`** — each shade is now scored against the theme text in
+  APCA Lc alongside the WCAG ratio. The colored contrast view paints the scores
+  in each shade's best-readable foreground (the tone the engine recommends).
+
+### Changed
+- The `pt pick` and `pt view` fzf menus are high-contrast over the live tint: the
+  family list is colored per-line (`--ansi`) in a tone that contrasts the tinted
+  background — light on the dark palette, dark on the light one — so a `ctrl-t`
+  toggle reflows the list in place and the focused row is a legible pill.
+  Previously the list inherited the terminal's ANSI foreground, with no
+  guaranteed contrast against the tint.
+- The `pt pick` `ctrl-t` dark/light toggle is flicker-free: it reloads the list,
+  preview, and header in place instead of restarting fzf (which redrew the whole
+  screen).
+
+### Removed
+- `scripts/preview.sh` — the static palette dump is folded into `pt view`'s
+  colored browser. `pt preview` stays as a back-compat alias for `pt view`.
+
 ## [0.3.0] — 2026-06-15
 
 ### Added

@@ -33,7 +33,6 @@ jobs:
         run: |
           shellcheck -s bash --severity=warning \
             bin/pwdtintii \
-            scripts/preview.sh \
             scripts/contrast-check.sh \
             pwdtintii.plugin.bash \
             tests/helper.bash \

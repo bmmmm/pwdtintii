@@ -498,7 +498,7 @@ pwdtintii() {
     reload)          pwdtintii_reload ;;
     view)            PWDTINTII_VIEW_FAMILY="${_PWDTINTII_FAMILY:-}" PWDTINTII_VIEW_SHADE="${_PWDTINTII_SHADE_IDX:-}" "${_pwdtintii_self}/bin/pwdtintii" view
                      pwdtintii_apply ;;   # re-emit the tint fzf may have cleared on exit (no flicker)
-    preview)         "${_pwdtintii_self}/scripts/preview.sh" ;;
+    preview)         pwdtintii view ;;    # back-compat: the old static dump is now view
     contrast)        "${_pwdtintii_self}/scripts/contrast-check.sh" ;;
     help|-h|--help)  _pwdtintii_help ;;
     *)
@@ -534,7 +534,7 @@ _pwdtintii_hub() {
   while action=$(_pwdtintii_menu_pick); [[ -n "$action" ]]; do
     pwdtintii "$action"
     case "$action" in
-      list|preview|contrast) _pwdtintii_pause || break ;;
+      list|contrast) _pwdtintii_pause || break ;;
     esac
   done
 }
@@ -562,16 +562,16 @@ _pwdtintii_help() {
   print
   print -r -- "  pt                 open the action menu (this list without fzf)"
   print -r -- "  pt pick [family]   pin a color family (picker; ctrl-t: dark/light)"
+  print -r -- "  pt view            browse the palette (colored; ctrl-t cycles)"
   print -r -- "  pt list            families + current mapping"
   print -r -- "  pt auto            back to directory-derived auto (unpin)"
   print -r -- "  pt off             stop tinting + reset the terminal background"
   print -r -- "  pt reload          re-read the palette TSV"
-  print -r -- "  pt preview         visual dump of the whole palette"
-  print -r -- "  pt contrast        WCAG contrast check of all shades"
+  print -r -- "  pt contrast        WCAG + APCA contrast of all shades"
   print -r -- "  pt doctor          diagnose terminal OSC 11 / fzf / palette"
   print -r -- "  pt help            this overview"
   print
-  print -r -- "  aliases: ptpick · ptlist · ptreload · ptpreview · ptcontrast"
+  print -r -- "  aliases: ptpick · ptlist · ptreload · ptview · ptcontrast"
 }
 
 # ── Hooks ────────────────────────────────────────────────────────────────────

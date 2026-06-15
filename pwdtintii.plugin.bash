@@ -518,7 +518,7 @@ pwdtintii() {
     reload)          pwdtintii_reload ;;
     view)            PWDTINTII_VIEW_FAMILY="${_PWDTINTII_FAMILY:-}" PWDTINTII_VIEW_SHADE="${_PWDTINTII_SHADE_IDX:-}" "${_pwdtintii_self}/bin/pwdtintii" view
                      pwdtintii_apply ;;   # re-emit the tint fzf may have cleared on exit (no flicker)
-    preview)         "${_pwdtintii_self}/scripts/preview.sh" ;;
+    preview)         pwdtintii view ;;    # back-compat: the old static dump is now view
     contrast)        "${_pwdtintii_self}/scripts/contrast-check.sh" ;;
     help|-h|--help)  _pwdtintii_help ;;
     *)
@@ -554,7 +554,7 @@ _pwdtintii_hub() {
   while action=$(_pwdtintii_menu_pick); [[ -n "$action" ]]; do
     pwdtintii "$action"
     case "$action" in
-      list|preview|contrast) _pwdtintii_pause || break ;;
+      list|contrast) _pwdtintii_pause || break ;;
     esac
   done
 }
@@ -581,16 +581,16 @@ _pwdtintii_help() {
   echo
   echo "  pt                 open the action menu (this list without fzf)"
   echo "  pt pick [family]   pin a color family (picker; ctrl-t: dark/light)"
+  echo "  pt view            browse the palette (colored; ctrl-t cycles)"
   echo "  pt list            families + current mapping"
   echo "  pt auto            back to directory-derived auto (unpin)"
   echo "  pt off             stop tinting + reset the terminal background"
   echo "  pt reload          re-read the palette TSV"
-  echo "  pt preview         visual dump of the whole palette"
-  echo "  pt contrast        WCAG contrast check of all shades"
+  echo "  pt contrast        WCAG + APCA contrast of all shades"
   echo "  pt doctor          diagnose terminal OSC 11 / fzf / palette"
   echo "  pt help            this overview"
   echo
-  echo "  aliases: ptpick · ptlist · ptreload · ptpreview · ptcontrast"
+  echo "  aliases: ptpick · ptlist · ptreload · ptview · ptcontrast"
 }
 
 # ── Hooks ────────────────────────────────────────────────────────────────────
