@@ -28,9 +28,9 @@ self-reload no longer double-registers (one-shot flag; zsh was already immune vi
 `add-zsh-hook`), self-reload parse-checks (`bash -n` / `zsh -n`) before sourcing
 a possibly mid-edit file, the focus tone picks darkest/lightest by luminance
 instead of palette position, and `bin/pwdtintii` rejects a malformed custom-
-palette shade instead of crashing under `set -e`. Suite is 78 green (the one
-sandbox-only red, `zsh pick_shade skips a live PID`, is the command sandbox
-blocking `kill -0`; it passes on a real shell — confirm with `tests/run.sh`).
+palette shade instead of crashing under `set -e`. Suite is 85 green, verified on
+a real shell (under the command sandbox the `zsh pick_shade skips a live PID`
+test reads red because `kill -0` is blocked there, not a real failure).
 
 **Verify in Ghostty before release** (the sandbox can't run a live tty): the
 `pt pick` **ctrl-t dark/light toggle is new and unverified** — open `pt pick`,
