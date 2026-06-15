@@ -79,16 +79,16 @@ there is no manual re-source step.
 |--------------------|---|
 | `pt`               | the action menu |
 | `pt pick [family]` | pin a family — fzf picker with live preview; `ctrl-t` toggles the dark/light group; a name pins directly |
+| `pt view`          | browse the palette — fzf with a colored preview; `ctrl-t` cycles swatch/contrast × dark/light; read-only |
 | `pt auto`          | unpin, back to directory-derived mode |
 | `pt off`           | stop tinting and reset the terminal background (OSC 111) |
 | `pt list`          | current key / family / shade, plus all families |
 | `pt reload`        | re-read the palette TSV |
-| `pt preview`       | dump the whole palette |
-| `pt contrast`      | WCAG contrast check of every shade |
+| `pt contrast`      | WCAG + APCA contrast check of every shade |
 | `pt doctor`        | check OSC 11 support, fzf, and the palette |
 | `pt help`          | this overview |
 
-Short aliases stay as direct accelerators: `ptpick ptlist ptreload ptpreview
+Short aliases stay as direct accelerators: `ptpick ptlist ptreload ptview
 ptcontrast`. Most commands also map to a `pwdtintii_*` function (e.g.
 `pwdtintii_pick`, `pwdtintii_list`) callable without the aliases.
 

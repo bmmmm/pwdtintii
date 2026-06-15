@@ -609,12 +609,12 @@ cmd_pick_toggle() {
 cmd_actions() {
   printf '%s\t%-9s%s\n' \
     pick     'pick'     'pin a color family (live picker)' \
+    view     'view'     'browse the palette (colored; ctrl-t cycles)' \
     list     'list'     'families + current mapping' \
     auto     'auto'     'back to directory-auto (unpin)' \
     off      'off'      'stop tinting, reset background' \
     reload   'reload'   're-read the palette from disk' \
-    preview  'preview'  'visual dump of the whole palette' \
-    contrast 'contrast' 'WCAG contrast check of all shades'
+    contrast 'contrast' 'WCAG + APCA contrast of all shades'
 }
 
 # One action's help text, shown in the hub's fzf preview pane.
@@ -627,6 +627,13 @@ cmd_describe_action() {
       printf 'ENTER pins it for this shell, ESC cancels. ctrl-t\n'
       printf 'toggles between the dark and light palette groups.\n\n'
       printf 'Direct: pt pick <family>   ·   alias: ptpick\n' ;;
+    view)
+      printf 'view — browse the palette\n\n'
+      printf 'Opens an fzf browser over the families with a colored\n'
+      printf 'preview pane. ctrl-t cycles the pane through swatch and\n'
+      printf 'contrast, dark and light; ESC closes. Read-only — it\n'
+      printf 'previews, it does not pin (use pick for that).\n\n'
+      printf 'Direct: pt view   ·   alias: ptview\n' ;;
     list)
       printf 'list — families + current mapping\n\n'
       printf 'Shows the resolved key, family and shade for this\n'
@@ -648,15 +655,10 @@ cmd_describe_action() {
       printf 'Reloads the palette TSV (and overrides) from disk and\n'
       printf 're-applies — run it after editing the palette.\n\n'
       printf 'Direct: pt reload   ·   alias: ptreload\n' ;;
-    preview)
-      printf 'preview — palette dump\n\n'
-      printf 'Prints every family with its four shades and sample\n'
-      printf 'text, so you can eyeball the whole palette at once.\n\n'
-      printf 'Direct: pt preview   ·   alias: ptpreview\n' ;;
     contrast)
-      printf 'contrast — WCAG contrast check\n\n'
-      printf 'Scores each shade against common foregrounds and\n'
-      printf 'flags combos below the WCAG body/large-text limits.\n\n'
+      printf 'contrast — WCAG + APCA contrast\n\n'
+      printf 'Scores each shade against the theme text in both WCAG\n'
+      printf 'ratios and APCA Lc, and flags the unreadable combos.\n\n'
       printf 'Direct: pt contrast   ·   alias: ptcontrast\n' ;;
     *)
       printf '%s\n\n(no description)\n' "${1:-}" ;;

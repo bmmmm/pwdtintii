@@ -153,7 +153,7 @@ teardown() { teardown_sandbox; }
   # Field 1 (tab-delimited) is the machine name the shell dispatcher re-runs;
   # pin the catalog so any add/remove forces a deliberate test update.
   local names; names=$(printf '%s\n' "$output" | cut -f1 | tr '\n' ' ')
-  [ "$names" = "pick list auto off reload preview contrast " ]
+  [ "$names" = "pick view list auto off reload contrast " ]
 }
 
 @test "describe-action renders a known action" {
@@ -176,14 +176,49 @@ teardown() { teardown_sandbox; }
   [[ "$output" == *"OSC 111"* ]]
 }
 
-# ── scripts smoke (preview + contrast) ───────────────────────────────────────
-# These ship as `pt preview` / `pt contrast`; CI only shellchecked them before.
-
-@test "preview script runs over the palette" {
-  run "$REPO_ROOT/scripts/preview.sh"
+@test "describe-action renders the view action" {
+  run "$CLI" describe-action view
   [ "$status" -eq 0 ]
-  [[ "$output" == *"Palette:"* ]]
+  [[ "$output" == *"browse the palette"* ]]
+  [[ "$output" == *"ptview"* ]]
 }
+
+# ── menu chrome: list-menu (--ansi list) + fzf-theme (--color spec) ───────────
+# The fzf menus sit on the OSC-11 tint; list-menu colors each row per-line so a
+# ctrl-t reload reflows it, fzf-theme paints the static chrome. Both flip by the
+# palette's mean luminance (light text on the dark palette, dark on the light).
+
+@test "list-menu colors every family with near-white text on the dark palette" {
+  run "$CLI" list-menu
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"blue"* ]]
+  [[ "$output" == *"charcoal"* ]]
+  [[ "$output" == *"38;2;233;236;240"* ]]   # near-white SGR wraps each row
+}
+
+@test "list-menu flips to near-black text on the light palette" {
+  run env PWDTINTII_PALETTE="$REPO_ROOT/palettes/light.tsv" "$CLI" list-menu
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"38;2;22;26;31"* ]]
+  [[ "$output" != *"38;2;233;236;240"* ]]
+}
+
+@test "fzf-theme emits a high-contrast color spec for the dark palette" {
+  run "$CLI" fzf-theme
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"bg+:#e9ecf0"* ]]          # focused-line pill
+  [[ "$output" == *"header:#e9ecf0:bold"* ]]
+}
+
+@test "fzf-theme flips the foreground on the light palette" {
+  run env PWDTINTII_PALETTE="$REPO_ROOT/palettes/light.tsv" "$CLI" fzf-theme
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"header:#161a1f:bold"* ]]
+  [[ "$output" == *"bg+:#161a1f"* ]]
+}
+
+# ── scripts smoke (contrast) ─────────────────────────────────────────────────
+# Ships as `pt contrast`; CI only shellchecked it before.
 
 @test "contrast-check runs and prints a summary" {
   command -v python3 >/dev/null 2>&1 || skip "python3 not available"

@@ -118,8 +118,8 @@ pwdtintii/
 │   ├── light.tsv           # pale variant for light themes
 │   └── README.md
 ├── scripts/
-│   ├── preview.sh          # visual palette dump
-│   ├── contrast-check.sh   # WCAG check (needs python3)
+│   ├── contrast.py         # WCAG + APCA engine (dump + --row machine mode)
+│   ├── contrast-check.sh   # WCAG + APCA check wrapper (needs python3)
 │   └── gen-light-palette.py  # regenerates light.tsv from default.tsv
 ├── tests/                  # bats suite coupling bash + zsh
 │   ├── helper.bash
