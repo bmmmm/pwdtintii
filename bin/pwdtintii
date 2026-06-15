@@ -121,6 +121,28 @@ _pt_band_heights() {
   done
 }
 
+# The active palette's theme name for the preview banner: dark/light for the
+# bundled palettes, empty for a custom one (nothing dark/light to label).
+_pt_theme_label() {
+  local d l; d="$(cmd_palette_for dark)"; l="$(cmd_palette_for light)"
+  if   [[ "$PALETTE" -ef "$d" ]]; then printf 'dark'
+  elif [[ "$PALETTE" -ef "$l" ]]; then printf 'light'
+  fi
+}
+
+# The preview pane's top line: "<mode>[ · <theme>] · <family>", mode+theme bold.
+# This is the single place the viewer shows which of the cycle's states is live,
+# so the ctrl-t change happens here (right pane) and nowhere else — the fzf
+# header on the left stays static.
+_pt_preview_banner() {
+  local mode="$1" fam="$2" theme; theme="$(_pt_theme_label)"
+  if [[ -n "$theme" ]]; then
+    printf '\e[1m%s · %s\e[0m · %s\n\n' "$mode" "$theme" "$fam"
+  else
+    printf '\e[1m%s\e[0m · %s\n\n' "$mode" "$fam"
+  fi
+}
+
 cmd_preview_family() {
   local fam="$1"
   local shades; shades=$(shades_for "$fam")
@@ -150,7 +172,7 @@ cmd_preview_family() {
     fi
   done
 
-  printf 'family: %s\n\n' "$fam"
+  _pt_preview_banner swatch "$fam"
 
   _pt_band_heights "$n" "$H"
   local idx
@@ -235,7 +257,7 @@ cmd_preview_contrast() {
   local n=${#hexes[@]}
   if (( n == 0 )); then return 0; fi
 
-  printf 'contrast: %s\n\n' "$fam"
+  _pt_preview_banner contrast "$fam"
   _pt_band_heights "$n" "$H"
 
   local k
@@ -346,23 +368,23 @@ cmd_palette_for() {
 }
 
 # view-advance <statedir>: the ctrl-t step of the viewer. Reads the current cycle
-# index + the state table (one "palette<TAB>preview-cmd<TAB>header" line per
-# state, written by cmd_view), advances the index (wrapping), and prints the fzf
-# actions that repaint the preview pane + header. Internal — fzf calls it through
-# transform(), it is not a user-facing subcommand.
+# index + the state table (one "palette<TAB>preview-cmd" line per state, written
+# by cmd_view), advances the index (wrapping), and prints the fzf action that
+# repaints the preview pane. Only the preview changes on ctrl-t — the mode/theme
+# label lives in the pane's banner (_pt_preview_banner), the left header stays
+# static. Internal: fzf calls it through transform(), not a user subcommand.
 cmd_view_advance() {
   local sd="$1"
-  local idx n line pal pcmd hdr self
+  local idx n line pal pcmd self
   idx=$(cat "$sd/idx" 2>/dev/null || echo 0)
   n=$(wc -l < "$sd/states")
   (( n == 0 )) && return 0
   idx=$(( (idx + 1) % n ))
   printf '%s\n' "$idx" > "$sd/idx"
   line=$(sed -n "$(( idx + 1 ))p" "$sd/states")
-  IFS=$'\t' read -r pal pcmd hdr <<< "$line"
+  IFS=$'\t' read -r pal pcmd <<< "$line"
   self="${SELF_DIR}/pwdtintii"
-  printf 'change-preview(PWDTINTII_PALETTE=%s %s %s {})+change-header(%s)\n' \
-    "$pal" "$self" "$pcmd" "$hdr"
+  printf 'change-preview(PWDTINTII_PALETTE=%s %s %s {})\n' "$pal" "$self" "$pcmd"
 }
 
 # view: the merged list+preview browser — the old `list` + `preview` in one. An
@@ -385,29 +407,32 @@ cmd_view() {
     bundled=1
   fi
 
-  # The shell's live family/shade, prefixed onto every state's header so it
-  # survives the ctrl-t redraws (view-advance only echoes the stored header).
-  local hp=""
-  [[ -n "${PWDTINTII_VIEW_FAMILY:-}" ]] && hp="${PWDTINTII_VIEW_FAMILY}/${PWDTINTII_VIEW_SHADE:-?} · "
+  # The left header is static — it no longer changes on ctrl-t (the live mode +
+  # theme label lives in the preview banner now, so all cycling shows in the
+  # right pane). Prefix the shell's current family/shade when the plugin passed it.
+  local statichdr="ctrl-t: cycle · esc: close"
+  [[ -n "${PWDTINTII_VIEW_FAMILY:-}" ]] && statichdr="${PWDTINTII_VIEW_FAMILY}/${PWDTINTII_VIEW_SHADE:-?} · ${statichdr}"
 
+  # State table: one "palette<TAB>preview-cmd" line per cycle step. cmd_view_advance
+  # steps the index on each ctrl-t; the banner inside each preview names the state.
   local sd; sd="$(mktemp -d "${TMPDIR:-/tmp}/pwdtintii-view.XXXXXX")"
   trap 'rm -rf "$sd"' EXIT INT TERM
   printf '0\n' > "$sd/idx"
   {
     if (( bundled )); then
-      printf '%s\tpreview-family\t%sswatch · dark · ctrl-t cycles\n'      "$dark"  "$hp"
-      printf '%s\tpreview-family\t%sswatch · light · ctrl-t cycles\n'     "$light" "$hp"
-      printf '%s\tpreview-contrast\t%scontrast · dark · ctrl-t cycles\n'  "$dark"  "$hp"
-      printf '%s\tpreview-contrast\t%scontrast · light · ctrl-t cycles\n' "$light" "$hp"
+      printf '%s\tpreview-family\n'   "$dark"
+      printf '%s\tpreview-family\n'   "$light"
+      printf '%s\tpreview-contrast\n' "$dark"
+      printf '%s\tpreview-contrast\n' "$light"
     else
-      printf '%s\tpreview-family\t%sswatch · ctrl-t cycles\n'     "$PALETTE" "$hp"
-      printf '%s\tpreview-contrast\t%scontrast · ctrl-t cycles\n' "$PALETTE" "$hp"
+      printf '%s\tpreview-family\n'   "$PALETTE"
+      printf '%s\tpreview-contrast\n' "$PALETTE"
     fi
   } > "$sd/states"
 
   local self="${SELF_DIR}/pwdtintii"
-  local initpal initcmd inithdr
-  IFS=$'\t' read -r initpal initcmd inithdr < <(sed -n '1p' "$sd/states")
+  local initpal initcmd
+  IFS=$'\t' read -r initpal initcmd < <(sed -n '1p' "$sd/states")
 
   cmd_list | fzf \
       --prompt='view > ' \
@@ -418,7 +443,7 @@ cmd_view() {
       --bind='enter:abort' \
       --bind='change:first' \
       --bind="ctrl-t:transform(${self} view-advance ${sd})" \
-      --header="${inithdr}" \
+      --header="${statichdr}" \
       >/dev/null || true
 }
 
