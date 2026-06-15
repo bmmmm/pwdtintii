@@ -3,12 +3,16 @@
 # Invoked by the plugin via its absolute path; the `pwdtintii` shell function
 # shadows this binary on PATH, so interactively you drive it through `pt`.
 # Subcommands:
+#   view                    Merged list+preview browser (fzf; ctrl-t cycles
+#                           swatch/contrast × dark/light)
 #   preview-family <fam>    Colored swatches for a family (stdout, fzf --preview)
+#   preview-contrast <fam>  Swatches + WCAG/APCA scores per shade (fzf --preview)
 #   emit-family <fam>       Emit OSC 11 to /dev/tty (live focus preview)
 #   actions                 Action catalog driving the `pt` hub menu
 #   describe-action <name>  One action's description (for the hub preview pane)
 #   list                    Print all families
 #   palette                 Print the loaded palette path
+#   palette-for <theme>     Print the bundled palette path for dark|light
 #
 # Resolves the palette from PWDTINTII_PALETTE or ../palettes/default.tsv relative to this script.
 
@@ -93,6 +97,30 @@ _pt_text_row() {
     "$r" "$g" "$b" "$gr" "$gg" "$gb" "$left" "$pad" '' "$lr" "$lg" "$lb" "$right"
 }
 
+# Distribute n color bands across an FZF_PREVIEW_LINES-tall pane: fill _PT_BANDS
+# with each band's row count (summing to the rows below the 2-line header) and
+# set _PT_GAP=1 when there's room for a blank line between bands. Shared by the
+# swatch (preview-family) and contrast (preview-contrast) previews so the two
+# stay vertically in step.
+_pt_band_heights() {
+  local n="$1" H="$2"
+  local avail=$(( H - 2 ))
+  if (( avail < n )); then avail=$n; fi
+  _PT_GAP=0
+  if (( avail >= n * 4 + (n - 1) )); then _PT_GAP=1; fi
+  local band_space=$(( avail - _PT_GAP * (n - 1) ))
+  local base=$(( band_space / n ))
+  local extra=$(( band_space % n ))
+  if (( base < 1 )); then base=1; fi
+  _PT_BANDS=()
+  local idx bh
+  for (( idx = 0; idx < n; idx++ )); do
+    bh=$base
+    if (( idx < extra )); then bh=$(( bh + 1 )); fi
+    _PT_BANDS+=( "$bh" )
+  done
+}
+
 cmd_preview_family() {
   local fam="$1"
   local shades; shades=$(shades_for "$fam")
@@ -124,24 +152,13 @@ cmd_preview_family() {
 
   printf 'family: %s\n\n' "$fam"
 
-  # Distribute the rows below the 2-line header across n bands so the total is
-  # exactly H. Use a 1-line gap between bands when there's room to breathe.
-  local avail=$(( H - 2 ))
-  if (( avail < n )); then avail=$n; fi
-  local gap=0
-  if (( avail >= n * 4 + (n - 1) )); then gap=1; fi
-  local band_space=$(( avail - gap * (n - 1) ))
-  local base=$(( band_space / n ))
-  local extra=$(( band_space % n ))
-  if (( base < 1 )); then base=1; fi
-
+  _pt_band_heights "$n" "$H"
   local idx
   for (( idx = 0; idx < n; idx++ )); do
     local hex="${hexes[idx]}"
     local r g b
     read -r r g b < <(hex_to_rgb "$hex")
-    local band_h=$base
-    if (( idx < extra )); then band_h=$(( band_h + 1 )); fi
+    local band_h="${_PT_BANDS[idx]}"
     local mid=$(( band_h / 2 ))
     local row
     for (( row = 0; row < band_h; row++ )); do
@@ -151,7 +168,98 @@ cmd_preview_family() {
         _pt_fill_row "$r" "$g" "$b" "$W"
       fi
     done
-    if (( gap == 1 && idx < n - 1 )); then echo; fi
+    if (( _PT_GAP == 1 && idx < n - 1 )); then echo; fi
+  done
+}
+
+# ── Contrast preview: colored swatches annotated with readability scores ──────
+# Badge a WCAG ratio (passed as a centi-int: 9.52 -> 952) and an APCA Lc
+# magnitude (deci-int: 73.9 -> 739) into the standard tiers. Integer args keep
+# the focus path fork-free — no awk/bc per row.
+_pt_wcag_badge() {
+  if   (( $1 >= 450 )); then printf 'AA'
+  elif (( $1 >= 300 )); then printf 'AA-large'
+  else                       printf 'fail'
+  fi
+}
+_pt_apca_badge() {
+  if   (( $1 >= 750 )); then printf 'body'
+  elif (( $1 >= 600 )); then printf 'large'
+  elif (( $1 >= 450 )); then printf 'min'
+  else                       printf 'low'
+  fi
+}
+
+# A contrast band's middle row: the shade label, its WCAG ratio and APCA Lc
+# (against the theme's standard text), painted in that shade's best-readable
+# foreground — the tone contrast.py recommends — on the shade itself. So you
+# read the scores in the very color the engine picked as most legible here.
+# Compacts the layout in two steps when the pane is too narrow for the full line.
+_pt_contrast_row() {
+  local r="$1" g="$2" b="$3" w="$4" label="$5" hex="$6" \
+        wcag="$7" wb="$8" lc="$9" ab="${10}" fgr="${11}" fgg="${12}" fgb="${13}"
+  local text=" ${label}  ${hex}  WCAG ${wcag} ${wb}  APCA ${lc} ${ab} "
+  if (( ${#text} > w )); then text=" ${label}  W ${wcag} ${wb}  A ${lc} ${ab} "; fi
+  if (( ${#text} > w )); then text=" ${label} ${wb}/${ab} "; fi
+  local pad=$(( w - ${#text} ))
+  if (( pad < 0 )); then pad=0; fi
+  printf '\e[48;2;%s;%s;%sm\e[1;38;2;%s;%s;%sm%s%*s\e[0m\n' \
+    "$r" "$g" "$b" "$fgr" "$fgg" "$fgb" "$text" "$pad" ''
+}
+
+# preview-contrast <family>: like preview-family, but each band carries its
+# readability scores. Parses contrast.py --row (the one source of the math), so
+# the colored viewer and the text dump can never disagree. Theme is auto (the
+# palette's mean luminance) — the bundled dark/light palettes classify the way
+# the viewer's dark/light cycle intends.
+cmd_preview_contrast() {
+  local fam="$1"
+  command -v python3 >/dev/null 2>&1 || { echo "pwdtintii: pt contrast needs python3"; return 1; }
+  local rows; rows=$(python3 "${SELF_DIR}/../scripts/contrast.py" "$PALETTE" auto --row "$fam") || return 1
+  if [[ -z "$rows" ]]; then
+    echo "unknown family: $fam"
+    return 1
+  fi
+
+  local H="${FZF_PREVIEW_LINES:-${LINES:-24}}"
+  local W="${FZF_PREVIEW_COLUMNS:-${COLUMNS:-44}}"
+  if (( W < 12 )); then W=12; fi
+
+  # Parse all rows first so the band count is known before height distribution.
+  local -a idxs hexes wcags lcs bfgs
+  local i hex wcag lc bfg
+  while IFS=$'\t' read -r i hex wcag lc bfg; do
+    [[ -z "$i" ]] && continue
+    idxs+=( "$i" ); hexes+=( "$hex" ); wcags+=( "$wcag" ); lcs+=( "$lc" ); bfgs+=( "$bfg" )
+  done <<< "$rows"
+  local n=${#hexes[@]}
+  if (( n == 0 )); then return 0; fi
+
+  printf 'contrast: %s\n\n' "$fam"
+  _pt_band_heights "$n" "$H"
+
+  local k
+  for (( k = 0; k < n; k++ )); do
+    local r g b fgr fgg fgb
+    read -r r g b < <(hex_to_rgb "${hexes[k]}")
+    read -r fgr fgg fgb < <(hex_to_rgb "${bfgs[k]}")
+    local wcag_centi="${wcags[k]/./}" lc_mag="${lcs[k]#[-+]}"
+    local lc_deci="${lc_mag/./}"
+    local wb ab
+    wb=$(_pt_wcag_badge "$wcag_centi")
+    ab=$(_pt_apca_badge "$lc_deci")
+    local band_h="${_PT_BANDS[k]}"
+    local mid=$(( band_h / 2 ))
+    local row
+    for (( row = 0; row < band_h; row++ )); do
+      if (( row == mid )); then
+        _pt_contrast_row "$r" "$g" "$b" "$W" "shade${idxs[k]}" "${hexes[k]}" \
+          "${wcags[k]}" "$wb" "${lcs[k]}" "$ab" "$fgr" "$fgg" "$fgb"
+      else
+        _pt_fill_row "$r" "$g" "$b" "$W"
+      fi
+    done
+    if (( _PT_GAP == 1 && k < n - 1 )); then echo; fi
   done
 }
 
@@ -227,6 +335,93 @@ cmd_palette() {
   echo "$PALETTE"
 }
 
+# Resolve a bundled palette path by theme name. The viewer's dark/light cycle
+# goes through here, so the two bundled locations live in one place.
+cmd_palette_for() {
+  case "${1:-}" in
+    dark)  printf '%s\n' "${SELF_DIR}/../palettes/default.tsv" ;;
+    light) printf '%s\n' "${SELF_DIR}/../palettes/light.tsv" ;;
+    *) echo "pwdtintii: palette-for needs 'dark' or 'light'" >&2; return 1 ;;
+  esac
+}
+
+# view-advance <statedir>: the ctrl-t step of the viewer. Reads the current cycle
+# index + the state table (one "palette<TAB>preview-cmd<TAB>header" line per
+# state, written by cmd_view), advances the index (wrapping), and prints the fzf
+# actions that repaint the preview pane + header. Internal — fzf calls it through
+# transform(), it is not a user-facing subcommand.
+cmd_view_advance() {
+  local sd="$1"
+  local idx n line pal pcmd hdr self
+  idx=$(cat "$sd/idx" 2>/dev/null || echo 0)
+  n=$(wc -l < "$sd/states")
+  (( n == 0 )) && return 0
+  idx=$(( (idx + 1) % n ))
+  printf '%s\n' "$idx" > "$sd/idx"
+  line=$(sed -n "$(( idx + 1 ))p" "$sd/states")
+  IFS=$'\t' read -r pal pcmd hdr <<< "$line"
+  self="${SELF_DIR}/pwdtintii"
+  printf 'change-preview(PWDTINTII_PALETTE=%s %s %s {})+change-header(%s)\n' \
+    "$pal" "$self" "$pcmd" "$hdr"
+}
+
+# view: the merged list+preview browser — the old `list` + `preview` in one. An
+# fzf picker over the families with a colored preview pane, and one ctrl-t that
+# cycles the pane through swatch/dark, swatch/light, contrast/dark, contrast/light
+# (or just swatch ↔ contrast for a custom palette with no light variant). The
+# state machine lives in a temp dir that cmd_view_advance steps on each ctrl-t.
+# Read-only: ENTER and ESC both close it, nothing is pinned and no OSC is emitted
+# (a separate process can't restore the shell's tint, so it must not change it).
+# The shell passes its current family/shade via PWDTINTII_VIEW_* for the header.
+cmd_view() {
+  if ! command -v fzf >/dev/null 2>&1; then
+    cmd_list   # no fzf: degrade to the plain family list, like list/preview did
+    return 0
+  fi
+  local dark light bundled=0
+  dark="$(cmd_palette_for dark)"
+  light="$(cmd_palette_for light)"
+  if [[ -f "$dark" && -f "$light" ]] && { [[ "$PALETTE" -ef "$dark" ]] || [[ "$PALETTE" -ef "$light" ]]; }; then
+    bundled=1
+  fi
+
+  # The shell's live family/shade, prefixed onto every state's header so it
+  # survives the ctrl-t redraws (view-advance only echoes the stored header).
+  local hp=""
+  [[ -n "${PWDTINTII_VIEW_FAMILY:-}" ]] && hp="${PWDTINTII_VIEW_FAMILY}/${PWDTINTII_VIEW_SHADE:-?} · "
+
+  local sd; sd="$(mktemp -d "${TMPDIR:-/tmp}/pwdtintii-view.XXXXXX")"
+  trap 'rm -rf "$sd"' EXIT INT TERM
+  printf '0\n' > "$sd/idx"
+  {
+    if (( bundled )); then
+      printf '%s\tpreview-family\t%sswatch · dark · ctrl-t cycles\n'      "$dark"  "$hp"
+      printf '%s\tpreview-family\t%sswatch · light · ctrl-t cycles\n'     "$light" "$hp"
+      printf '%s\tpreview-contrast\t%scontrast · dark · ctrl-t cycles\n'  "$dark"  "$hp"
+      printf '%s\tpreview-contrast\t%scontrast · light · ctrl-t cycles\n' "$light" "$hp"
+    else
+      printf '%s\tpreview-family\t%sswatch · ctrl-t cycles\n'     "$PALETTE" "$hp"
+      printf '%s\tpreview-contrast\t%scontrast · ctrl-t cycles\n' "$PALETTE" "$hp"
+    fi
+  } > "$sd/states"
+
+  local self="${SELF_DIR}/pwdtintii"
+  local initpal initcmd inithdr
+  IFS=$'\t' read -r initpal initcmd inithdr < <(sed -n '1p' "$sd/states")
+
+  cmd_list | fzf \
+      --prompt='view > ' \
+      --height=100% \
+      --reverse \
+      --preview="PWDTINTII_PALETTE=${initpal} ${self} ${initcmd} {}" \
+      --preview-window=right:55%:nowrap \
+      --bind='enter:abort' \
+      --bind='change:first' \
+      --bind="ctrl-t:transform(${self} view-advance ${sd})" \
+      --header="${inithdr}" \
+      >/dev/null || true
+}
+
 # ── Action catalog for the `pt` hub menu ─────────────────────────────────────
 # One row per action: machine-name <TAB> padded "name + gloss" shown in fzf.
 # Single source of truth — the shell dispatcher re-runs the chosen machine name
@@ -292,12 +487,16 @@ cmd_describe_action() {
 cmd=${1:-}
 shift || true
 case "$cmd" in
+  view)             cmd_view ;;
+  view-advance)     cmd_view_advance "${1:-}" ;;
   preview-family)   cmd_preview_family "${1:-}" ;;
+  preview-contrast) cmd_preview_contrast "${1:-}" ;;
   emit-family)      cmd_emit_family "${1:-}" ;;
   actions)          cmd_actions ;;
   describe-action)  cmd_describe_action "${1:-}" ;;
   list)             cmd_list ;;
   palette)          cmd_palette ;;
+  palette-for)      cmd_palette_for "${1:-}" ;;
   *)
     echo "pwdtintii: unknown subcommand: $cmd" >&2
     exit 1
