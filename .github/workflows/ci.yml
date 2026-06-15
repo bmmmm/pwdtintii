@@ -51,7 +51,10 @@ jobs:
         run: PWDTINTII_TEST_BASH="$(brew --prefix)/bin/bash" tests/run.sh
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    # GitHub only: the release step uses gh + GITHUB_TOKEN, which the Forgejo
+    # mirror runner has neither. github.server_url is github.com only on GitHub
+    # (the Forgejo instance reports its own URL), so the job is skipped there.
+    if: startsWith(github.ref, 'refs/tags/v') && github.server_url == 'https://github.com'
     needs: lint-and-test
     runs-on: ubuntu-latest
     permissions:
