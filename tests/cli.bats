@@ -27,7 +27,9 @@ teardown() { teardown_sandbox; }
 @test "preview-family renders a known family" {
   run "$CLI" preview-family blue
   [ "$status" -eq 0 ]
-  [[ "$output" == *"family: blue"* ]]
+  # Banner is "<mode> · <theme> · <family>" — mode + family must show.
+  [[ "$output" == *"swatch"* ]]
+  [[ "$output" == *"blue"* ]]
 }
 
 @test "preview-family fills the pane to FZF_PREVIEW_LINES (no empty lower half)" {

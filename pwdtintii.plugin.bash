@@ -496,7 +496,8 @@ pwdtintii() {
     off)             pwdtintii_off ;;
     doctor|diag)     pwdtintii_doctor ;;
     reload)          pwdtintii_reload ;;
-    view)            PWDTINTII_VIEW_FAMILY="${_PWDTINTII_FAMILY:-}" PWDTINTII_VIEW_SHADE="${_PWDTINTII_SHADE_IDX:-}" "${_pwdtintii_self}/bin/pwdtintii" view ;;
+    view)            PWDTINTII_VIEW_FAMILY="${_PWDTINTII_FAMILY:-}" PWDTINTII_VIEW_SHADE="${_PWDTINTII_SHADE_IDX:-}" "${_pwdtintii_self}/bin/pwdtintii" view
+                     pwdtintii_apply ;;   # re-emit the tint fzf may have cleared on exit (no flicker)
     preview)         "${_pwdtintii_self}/scripts/preview.sh" ;;
     contrast)        "${_pwdtintii_self}/scripts/contrast-check.sh" ;;
     help|-h|--help)  _pwdtintii_help ;;
