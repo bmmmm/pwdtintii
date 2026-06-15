@@ -38,24 +38,38 @@ hex_to_rgb() {
   printf '%d %d %d\n' "0x${hex:0:2}" "0x${hex:2:2}" "0x${hex:4:2}"
 }
 
+# Integer YIQ perceived luminance of an r,g,b triple (0-255 each) → _PT_LUM.
+# >= 128 reads as a light color. A function — one weight set, one threshold, in
+# one place — returning via a global so it stays fork-free on the picker's
+# per-keystroke focus path (the formula used to be inlined in two helpers).
+_pt_lum() {
+  _PT_LUM=$(( ($1 * 299 + $2 * 587 + $3 * 114) / 1000 ))
+}
+
+# True when arg is a #rrggbb / rrggbb hex — the only form the math helpers parse.
+# Guards the 16# arithmetic from crashing on a malformed palette cell under set -e.
+_pt_valid_hex() {
+  [[ "${1#\#}" =~ ^[0-9a-fA-F]{6}$ ]]
+}
+
 # A full-width row painted solid in the shade color.
 _pt_fill_row() {
   printf '\e[48;2;%s;%s;%sm%*s\e[0m\n' "$1" "$2" "$3" "$4" ''
 }
 
-# Readable foreground tones for text painted on a band of color (r,g,b). Echoes
-# "ghost_r ghost_g ghost_b  label_r label_g label_b": a muted tone for the
-# ghost-text sample (it gauges dim-autosuggestion readability, so it stays dim —
-# just dark-on-light instead of light-on-dark) and a strong tone for the label.
-# Perceived luminance (integer YIQ): >= 128 is a light band → flip to dark text.
+# Readable foreground tones for text painted on a band of color (r,g,b). Sets
+# _PT_FG to "ghost_r ghost_g ghost_b  label_r label_g label_b": a muted tone for
+# the ghost-text sample (it gauges dim-autosuggestion readability, so it stays
+# dim — just dark-on-light instead of light-on-dark) and a strong tone for the
+# label. _pt_lum picks the band: >= 128 is a light band → flip to dark text.
 # The shipped palettes split cleanly (dark tops at lum 113, light bottoms at
 # 164); being per-band, this also covers a stray light shade in a dark palette.
 _pt_text_fg() {
-  local r="$1" g="$2" b="$3"
-  if (( (r * 299 + g * 587 + b * 114) / 1000 >= 128 )); then
-    printf '72 72 72 16 16 16\n'        # light band: dim-dark ghost + near-black label
+  _pt_lum "$1" "$2" "$3"
+  if (( _PT_LUM >= 128 )); then
+    _PT_FG="72 72 72 16 16 16"          # light band: dim-dark ghost + near-black label
   else
-    printf '220 220 220 235 235 235\n'  # dark band: dim-light ghost + near-white label
+    _PT_FG="220 220 220 235 235 235"    # dark band: dim-light ghost + near-white label
   fi
 }
 
@@ -73,7 +87,8 @@ _pt_text_row() {
   local pad=$(( w - ${#left} - ${#right} ))
   if (( pad < 0 )); then pad=0; fi
   local gr gg gb lr lg lb
-  read -r gr gg gb lr lg lb < <(_pt_text_fg "$r" "$g" "$b")
+  _pt_text_fg "$r" "$g" "$b"
+  read -r gr gg gb lr lg lb <<< "$_PT_FG"
   printf '\e[48;2;%s;%s;%sm\e[38;2;%s;%s;%sm\e[3m%s\e[23m%*s\e[1;38;2;%s;%s;%sm%s\e[0m\n' \
     "$r" "$g" "$b" "$gr" "$gg" "$gb" "$left" "$pad" '' "$lr" "$lg" "$lb" "$right"
 }
@@ -97,6 +112,15 @@ cmd_preview_family() {
   read -r -a hexes <<<"$shades" || true
   local n=${#hexes[@]}
   if (( n == 0 )); then return 0; fi
+  # A custom palette reaches the CLI unvalidated (only the plugin loader checks);
+  # a malformed cell would crash hex_to_rgb's printf below, so reject it loudly.
+  local h
+  for h in "${hexes[@]}"; do
+    if ! _pt_valid_hex "$h"; then
+      echo "pwdtintii: family '$fam' has a malformed shade: $h" >&2
+      return 1
+    fi
+  done
 
   printf 'family: %s\n\n' "$fam"
 
@@ -155,8 +179,8 @@ _pt_lift_hex() {
 # YIQ, >= 128) — picks the focus-tone direction per palette.
 _pt_is_light_hex() {
   local hex="${1#\#}"
-  local r=$(( 16#${hex:0:2} )) g=$(( 16#${hex:2:2} )) b=$(( 16#${hex:4:2} ))
-  (( (r * 299 + g * 587 + b * 114) / 1000 >= 128 ))
+  _pt_lum "$(( 16#${hex:0:2} ))" "$(( 16#${hex:2:2} ))" "$(( 16#${hex:4:2} ))"
+  (( _PT_LUM >= 128 ))
 }
 
 # The live-preview focus background for a family: a tone nudged just past the
@@ -169,11 +193,21 @@ _pt_is_light_hex() {
 _pt_focus_tone() {
   local shades; shades=$(shades_for "$1")
   [[ -z "$shades" ]] && return 1
-  local s0="${shades%% *}" s3="${shades##* }"
-  if _pt_is_light_hex "$s0"; then
-    _pt_lift_hex "$s3" 50
+  # Darkest + lightest by luminance, not by position — so a palette that orders
+  # its shades light-to-dark still classifies correctly (and a malformed cell
+  # bails cleanly instead of crashing the 16# arithmetic under set -e).
+  local sh dark="" light="" dlum=256 llum=-1 h
+  for sh in $shades; do
+    _pt_valid_hex "$sh" || return 1
+    h="${sh#\#}"
+    _pt_lum "$(( 16#${h:0:2} ))" "$(( 16#${h:2:2} ))" "$(( 16#${h:4:2} ))"
+    if (( _PT_LUM < dlum )); then dlum=$_PT_LUM; dark="$sh"; fi
+    if (( _PT_LUM > llum )); then llum=$_PT_LUM; light="$sh"; fi
+  done
+  if _pt_is_light_hex "$dark"; then
+    _pt_lift_hex "$light" 50
   else
-    _pt_dim_hex "$s0" 50
+    _pt_dim_hex "$dark" 50
   fi
 }
 

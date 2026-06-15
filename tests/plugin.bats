@@ -236,6 +236,40 @@ teardown() { teardown_sandbox; }
   [[ "$output" == *"count=1"* ]]
 }
 
+@test "self-reload does not re-register the prompt hook (no double OSC 11)" {
+  need_bash
+  # A framework that spaces out the `;` separators slips past the substring
+  # guard; the one-shot install flag must stop a self-reload from appending
+  # pwdtintii_apply a second time (which would emit OSC 11 twice per prompt).
+  run bash_eval "$TEST_HOME" "$TEST_HOME" '
+    PROMPT_COMMAND="starship_precmd ; pwdtintii_apply"   # space-padded separator
+    _PWDTINTII_LOADED_MTIME=1                            # force staleness
+    pwdtintii list >/dev/null 2>&1                       # dispatch → self-reload
+    n=$(grep -o pwdtintii_apply <<< "$PROMPT_COMMAND" | grep -c .)
+    echo "count=$n"
+  '
+  [[ "$output" == *"count=1"* ]]
+}
+
+@test "self-reload refuses a syntactically broken plugin (keeps the running one)" {
+  need_bash
+  # A reload that lands mid-edit must not partially redefine the plugin: bash -n
+  # rejects the broken file, the dispatcher reports it, and the running
+  # definitions survive (here pwdtintii_apply stays callable).
+  run bash_eval "$TEST_HOME" "$TEST_HOME" '
+    broken="$PWDTINTII_SHADES_DIR/broken.bash"
+    mkdir -p "$PWDTINTII_SHADES_DIR"
+    printf "pwdtintii_apply() {\n" > "$broken"   # truncated: unterminated function
+    _PWDTINTII_PLUGIN_FILE="$broken"
+    _PWDTINTII_LOADED_MTIME=1                     # force staleness
+    msg=$(pwdtintii list 2>&1 >/dev/null) || true
+    echo "$msg"
+    type pwdtintii_apply >/dev/null 2>&1 && echo "apply-intact" || echo "apply-gone"
+  '
+  [[ "$output" == *"won't parse"* ]]
+  [[ "$output" == *"apply-intact"* ]]
+}
+
 # ── pt off / disable + re-enable ─────────────────────────────────────────────
 
 @test "off sets the disabled flag and makes apply a no-op" {

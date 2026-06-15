@@ -41,6 +41,12 @@ _pwdtintii_is_stale() {
 # untouched by the boot path, and config like PWDTINTII_PALETTE is kept via `:=`.
 _pwdtintii_resource() {
   [[ -f "$_PWDTINTII_PLUGIN_FILE" ]] || return 1
+  # Parse-check before sourcing: a reload that lands mid-edit (the file saved
+  # half-written) would otherwise redefine only part of the plugin into the live
+  # shell while still printing normal output, so a broken reload reads as
+  # success. `zsh -n` parses without executing; on a syntax error keep the
+  # already-loaded, working definitions.
+  command zsh -n "$_PWDTINTII_PLUGIN_FILE" 2>/dev/null || return 1
   source "$_PWDTINTII_PLUGIN_FILE"
 }
 
@@ -443,7 +449,11 @@ pwdtintii() {
   # (This running pwdtintii keeps its already-parsed body for this one call, but
   # the actions it dispatches resolve to the freshly defined functions.)
   if _pwdtintii_is_stale; then
-    _pwdtintii_resource && print -u2 -- "pwdtintii: plugin changed on disk — reloaded this shell"
+    if _pwdtintii_resource; then
+      print -u2 -- "pwdtintii: plugin changed on disk — reloaded this shell"
+    else
+      print -u2 -- "pwdtintii: plugin changed on disk but the new version won't parse — keeping the running one"
+    fi
   fi
   local sub="${1:-}"
   case "$sub" in

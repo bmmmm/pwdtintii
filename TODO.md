@@ -21,7 +21,16 @@ picker (ctrl-t), a self-reloading `pt` (auto re-source when the plugin file
 changed on disk, so there is no manual re-source step), and a high-contrast
 picker on the light palette: the fzf preview pane flips to dark text on pale
 swatches, and the live focus/hover background lifts toward white instead of
-darkening a light terminal theme. Suite is 78 green.
+darkening a light terminal theme.
+
+A `/code-review max` pass then hardened that new surface: the bash prompt-hook
+self-reload no longer double-registers (one-shot flag; zsh was already immune via
+`add-zsh-hook`), self-reload parse-checks (`bash -n` / `zsh -n`) before sourcing
+a possibly mid-edit file, the focus tone picks darkest/lightest by luminance
+instead of palette position, and `bin/pwdtintii` rejects a malformed custom-
+palette shade instead of crashing under `set -e`. Suite is 78 green (the one
+sandbox-only red, `zsh pick_shade skips a live PID`, is the command sandbox
+blocking `kill -0`; it passes on a real shell — confirm with `tests/run.sh`).
 
 **Verify in Ghostty before release** (the sandbox can't run a live tty): the
 `pt pick` **ctrl-t dark/light toggle is new and unverified** — open `pt pick`,
