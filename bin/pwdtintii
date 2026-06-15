@@ -492,6 +492,60 @@ cmd_view() {
       >/dev/null || true
 }
 
+# ── Picker support: flicker-free dark/light toggle ───────────────────────────
+# The picker (the plugin's _pwdtintii_pick_interactive) used to restart fzf on
+# every ctrl-t — a full screen redraw that flickered. These two helpers let it
+# keep fzf open and repaint in place instead, the same transform() technique as
+# the viewer above. The plugin keeps the committed-pick + live-tint logic.
+
+# pick-color: the picker header's color. Near-white on a dark palette, near-black
+# on a light one — guaranteed contrast against ANY family's live tint. The picker
+# tints the background to the *focused* family, which changes on every keystroke,
+# so a family-hued header (like the viewer's, where the family is fixed) would
+# have no reliable contrast; a neutral high-contrast tone always reads. Classifies
+# by the palette's mean shade luminance, so a custom palette is handled too.
+cmd_pick_color() {
+  local mean
+  mean=$(awk -F'\t' '
+    function hexval(s,    v, i, c) {
+      v = 0
+      for (i = 1; i <= length(s); i++) {
+        c = index("0123456789abcdef", tolower(substr(s, i, 1))) - 1
+        if (c < 0) c = 0
+        v = v * 16 + c
+      }
+      return v
+    }
+    $1 != "" && $1 != "family" && $1 !~ /^#/ {
+      for (i = 2; i <= 5; i++) {
+        h = $i; sub(/^#/, "", h)
+        sum += (hexval(substr(h,1,2)) * 299 + hexval(substr(h,3,2)) * 587 + hexval(substr(h,5,2)) * 114) / 1000
+        n++
+      }
+    }
+    END { if (n > 0) printf "%d", sum / n; else print 128 }
+  ' "$PALETTE")
+  if (( mean >= 128 )); then printf '#161a1f\n'; else printf '#e9ecf0\n'; fi
+}
+
+# pick-toggle <statedir>: the ctrl-t step of the picker. Flips the active group
+# (dark<->light), records the new palette in the state dir (so the live-tint
+# focus bind and the committed pick read the current one), and prints the fzf
+# action chain that swaps the list, preview, and header in place — no restart.
+cmd_pick_toggle() {
+  local sd="$1"
+  local grp; grp=$(cat "$sd/grp" 2>/dev/null || echo dark)
+  local newgrp other newpal self
+  if [[ "$grp" == dark ]]; then newgrp=light; other=dark; else newgrp=dark; other=light; fi
+  newpal="$(cmd_palette_for "$newgrp")"
+  printf '%s\n' "$newgrp" > "$sd/grp"
+  printf '%s\n' "$newpal" > "$sd/pal"
+  self="${SELF_DIR}/pwdtintii"
+  local hdr="↑↓ · ENTER pin · ctrl-t: ${other} theme · ESC cancel"
+  printf 'reload(PWDTINTII_PALETTE=%s %s list)+change-preview(PWDTINTII_PALETTE=%s %s preview-family {})+change-header(%s)\n' \
+    "$newpal" "$self" "$newpal" "$self" "$hdr"
+}
+
 # ── Action catalog for the `pt` hub menu ─────────────────────────────────────
 # One row per action: machine-name <TAB> padded "name + gloss" shown in fzf.
 # Single source of truth — the shell dispatcher re-runs the chosen machine name
@@ -559,6 +613,8 @@ shift || true
 case "$cmd" in
   view)             cmd_view ;;
   view-advance)     cmd_view_advance "${1:-}" ;;
+  pick-color)       cmd_pick_color ;;
+  pick-toggle)      cmd_pick_toggle "${1:-}" ;;
   preview-family)   cmd_preview_family "${1:-}" ;;
   preview-contrast) cmd_preview_contrast "${1:-}" ;;
   emit-family)      cmd_emit_family "${1:-}" ;;
