@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Contrast engine for pwdtintii palettes: WCAG 2.x ratio + APCA Lc + best fg.
 
-Two output modes:
+Three output modes:
   contrast.py <palette.tsv> [auto|dark|light]
       Human-readable table: every family.shade vs the theme foregrounds, with
       the WCAG ratio, the APCA Lc, and the best-readable foreground per shade.
@@ -9,6 +9,10 @@ Two output modes:
       Machine-readable rows for one family, one shade per line, tab-separated:
       idx<TAB>hex<TAB>wcag_ratio<TAB>lc<TAB>best_fg
       (the viewer's colored contrast preview parses this).
+  contrast.py <palette.tsv> [auto|dark|light] --check-floor <N>
+      Guard mode: exit 1 if any shade's APCA |Lc| against the theme text is
+      below N, listing the offenders; exit 0 if all clear. The test suite uses
+      it to enforce the readability floor on both palettes.
 
 The text set is auto-picked from the palette's mean luminance, or forced with
 dark/light. WCAG flags <3.0 (large UI) / <4.5 (body); the APCA Lc magnitude
@@ -26,6 +30,19 @@ if "--row" in args:
         sys.stderr.write("--row needs a family name\n")
         sys.exit(2)
     row_family = args[i + 1]
+    del args[i:i + 2]
+
+check_floor = None
+if "--check-floor" in args:
+    i = args.index("--check-floor")
+    if i + 1 >= len(args):
+        sys.stderr.write("--check-floor needs a number\n")
+        sys.exit(2)
+    try:
+        check_floor = float(args[i + 1])
+    except ValueError:
+        sys.stderr.write(f"--check-floor needs a number (got: {args[i + 1]})\n")
+        sys.exit(2)
     del args[i:i + 2]
 
 palette = args[0] if args else ""
@@ -132,6 +149,21 @@ if row_family is not None:
                   f"{apca_lc(text_fg, hexv):+.1f}\t{best_fg(hexv, theme)}")
         break
     sys.exit(0)
+
+# ── check mode: enforce an APCA floor for text-on-tint readability ────────────────
+if check_floor is not None:
+    violations = []
+    for fam, hexes in rows:
+        for i, hexv in enumerate(hexes):
+            lc = abs(apca_lc(text_fg, hexv))
+            if lc < check_floor:
+                violations.append((f"{fam}.s{i}", hexv, lc))
+    label = "light text" if theme == "dark" else "dark text"
+    print(f"APCA floor {check_floor:.0f}: {text_fg} ({label}) on {palette}")
+    for name, hexv, lc in violations:
+        print(f"  FAIL {name:<18} {hexv}  Lc {lc:.1f}")
+    print(f"Summary: {len(violations)} below floor (APCA |Lc| < {check_floor:.0f})")
+    sys.exit(1 if violations else 0)
 
 # ── human mode: full table ──────────────────────────────────────────────────────
 print()
