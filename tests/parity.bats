@@ -52,6 +52,26 @@ teardown() { teardown_sandbox; }
   [ "$a" = "$b" ]
 }
 
+# The load-bearing index-base invariant: bash apply emits ${shades[$shade_idx]}
+# (0-based) and zsh emits ${shades[$((shade_idx+1))]} (1-based). For a given
+# (family, shade) the resulting OSC-11 hex MUST be byte-identical — otherwise the
+# same directory tints differently per shell, and nothing else in the suite would
+# catch a copy-paste slip between the two subscript forms.
+@test "emitted OSC-11 hex is byte-identical in bash and zsh (apply index base)" {
+  local b z
+  b="$(bash_emit_shades /testhome /testhome/x blue)"
+  z="$(zsh_emit_shades  /testhome /testhome/x blue)"
+  [ -n "$b" ]
+  [ "$b" = "$z" ]
+  # Teeth: the four shades must be distinct, so the test can't pass vacuously on
+  # an apply that emits the same shade (or nothing) for every index.
+  [ "$(printf '%s\n' "$b" | sort -u | grep -c .)" -eq 4 ]
+}
+
+@test "emitted OSC-11 hex parity holds for a second family (charcoal)" {
+  [ "$(bash_emit_shades /testhome /testhome/x charcoal)" = "$(zsh_emit_shades /testhome /testhome/x charcoal)" ]
+}
+
 # Regression guard: apply at the filesystem root (empty project basename) must
 # not leak an internal error (e.g. "bad array subscript") to the prompt. This
 # deliberately does NOT swallow stderr, unlike the *_eval helpers.
@@ -75,6 +95,27 @@ teardown() { teardown_sandbox; }
 # behaviour identical so `pt` works the same regardless of shell.
 @test "dispatcher help text is identical in bash and zsh" {
   [ "$(bash_eval /testhome / 'pwdtintii help')" = "$(zsh_eval /testhome / 'pwdtintii help')" ]
+}
+
+# help was the ONLY display text pinned; doctor, list, and the no-fzf menu carry
+# just as much hand-mirrored text across the two files and were unguarded. Off a
+# tty all three are deterministic (doctor takes its "skipped" branch), so pin
+# them byte-for-byte: this makes maintaining two native files provably safe and
+# is the baseline the echo->printf collapse must preserve.
+@test "doctor output is identical in bash and zsh (off-tty)" {
+  [ "$(bash_eval /testhome /testhome/proj 'pwdtintii doctor')" = "$(zsh_eval /testhome /testhome/proj 'pwdtintii doctor')" ]
+}
+
+@test "list output is identical in bash and zsh" {
+  [ "$(bash_eval /testhome /testhome/proj 'pwdtintii list')" = "$(zsh_eval /testhome /testhome/proj 'pwdtintii list')" ]
+}
+
+@test "no-fzf pick menu output is identical in bash and zsh" {
+  local b z
+  b="$(bash_eval /testhome /testhome/proj 'printf "\n" | _pwdtintii_pick_menu 2>&1')"
+  z="$(zsh_eval  /testhome /testhome/proj 'printf "\n" | _pwdtintii_pick_menu 2>&1')"
+  [ -n "$b" ]
+  [ "$b" = "$z" ]
 }
 
 @test "dispatcher rejects an unknown command in zsh" {
