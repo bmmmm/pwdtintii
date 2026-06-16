@@ -56,3 +56,17 @@ zsh_eval() {
 # key|family for a given (home, pwd), per shell.
 bash_key_family() { bash_eval "$1" "$2" 'k=$(_pwdtintii_default_key); printf "%s|%s\n" "$k" "$(_pwdtintii_family_for "$k")"'; }
 zsh_key_family()  { zsh_eval  "$1" "$2" 'k=$(_pwdtintii_default_key); printf "%s|%s\n" "$k" "$(_pwdtintii_family_for "$k")"'; }
+
+# Hex-dump (one line per shade) of the OSC 11 pwdtintii_apply emits for family $3
+# across shade index 0..3. Drives the REAL apply array-subscript path — bash
+# 0-based ${shades[$shade_idx]}, zsh 1-based ${shades[$((shade_idx+1))]} — by
+# forcing the family + shade and steering apply down its cached (reuse) branch,
+# so the two shells must agree byte-for-byte on which physical hex each shade
+# index selects. od makes the ESC/BEL bytes compare cleanly.
+_pt_emit_snip='
+  _PWDTINTII_LAST_PWD="$PWD"; _PWDTINTII_LAST_KEY=k; _PWDTINTII_PINNED=k
+  _PWDTINTII_FORCED_FAMILY=__FAM__; _PWDTINTII_FAMILY=__FAM__
+  unset _PWDTINTII_FORCE_REAPPLY
+  for i in 0 1 2 3; do _PWDTINTII_SHADE_IDX=$i; pwdtintii_apply | od -An -tx1 | tr -d " \n"; printf "\n"; done'
+bash_emit_shades() { bash_eval "$1" "$2" "${_pt_emit_snip//__FAM__/$3}"; }
+zsh_emit_shades()  { zsh_eval  "$1" "$2" "${_pt_emit_snip//__FAM__/$3}"; }
