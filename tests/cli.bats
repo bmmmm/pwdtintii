@@ -249,19 +249,53 @@ teardown() { teardown_sandbox; }
   [ "$after" -le "$before" ]
 }
 
-@test "view-advance swaps the preview and forces an immediate refresh" {
-  # Regression: ctrl-t emitted change-preview alone, so fzf kept the cached render
-  # for the focused item until the next arrow key (the visible lag). refresh-preview
-  # re-runs the new preview command now. Also advances + wraps the cycle index.
+@test "view-advance reflows the whole frame: reload, header, preview, refresh" {
+  # ctrl-t advances the cycle and repaints everything for the new state's theme:
+  # reload (the --ansi list colors reflow dark<->light), change-header (the
+  # header's own ANSI color), change-preview + refresh-preview (swap the pane and
+  # run it now — not after the next arrow key). State 1 here is the light palette.
+  # The backdrop OSC goes to /dev/tty as a side effect, not stdout, so it is not
+  # asserted here. Also advances + wraps the index.
   local sd="$TEST_HOME/vstate"; mkdir -p "$sd"
   printf '0\n' > "$sd/idx"
   printf '%s\tpreview-family\n%s\tpreview-contrast\n' \
     "$REPO_ROOT/palettes/default.tsv" "$REPO_ROOT/palettes/light.tsv" > "$sd/states"
   run "$CLI" view-advance "$sd"
   [ "$status" -eq 0 ]
+  [[ "$output" == *"reload("* ]]
+  [[ "$output" == *"list-menu"* ]]
   [[ "$output" == *"change-preview("* ]]
+  [[ "$output" == *"change-header("* ]]
   [[ "$output" == *"+refresh-preview"* ]]
+  [[ "$output" == *"light.tsv"* ]]
   [ "$(cat "$sd/idx")" -eq 1 ]
+}
+
+@test "view backdrop is a dark neutral for the dark palette, light for the light one" {
+  # The viewer tints the terminal to a deliberate dark default and flips it to a
+  # light neutral on ctrl-t, so the global background tracks the dark/light cycle
+  # instead of a light preview floating in a dark frame.
+  source <(sed -n '/^_pt_palette_is_light()/,/^}/p;/^_pt_view_backdrop()/,/^}/p' "$CLI")
+  PALETTE="$PWDTINTII_PALETTE"
+  run _pt_view_backdrop "$REPO_ROOT/palettes/default.tsv"
+  [ "$status" -eq 0 ]
+  [ "$output" = "#16191f" ]
+  run _pt_view_backdrop "$REPO_ROOT/palettes/light.tsv"
+  [ "$status" -eq 0 ]
+  [ "$output" = "#e8eaee" ]
+}
+
+@test "emit-restore is a no-op without a view family" {
+  run "$CLI" emit-restore
+  [ "$status" -eq 0 ]
+}
+
+@test "emit-restore exits cleanly with a view family set" {
+  # It emits the shell's tint to /dev/tty (suppressed when there's no tty), so we
+  # can only assert it doesn't crash under set -euo pipefail — the structural twin
+  # of emit-family's no-op test.
+  run env PWDTINTII_VIEW_FAMILY=blue PWDTINTII_VIEW_SHADE=2 "$CLI" emit-restore
+  [ "$status" -eq 0 ]
 }
 
 # ── scripts smoke (contrast) ─────────────────────────────────────────────────
