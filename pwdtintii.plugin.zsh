@@ -499,8 +499,8 @@ pwdtintii() {
     off)             pwdtintii_off ;;
     doctor|diag)     pwdtintii_doctor ;;
     reload)          pwdtintii_reload ;;
-    view)            PWDTINTII_VIEW_FAMILY="${_PWDTINTII_FAMILY:-}" PWDTINTII_VIEW_SHADE="${_PWDTINTII_SHADE_IDX:-}" "${_pwdtintii_self}/bin/pwdtintii" view
-                     pwdtintii_apply ;;   # re-emit the tint fzf may have cleared on exit (no flicker)
+    view)            PWDTINTII_PALETTE="$PWDTINTII_PALETTE" PWDTINTII_VIEW_FAMILY="${_PWDTINTII_FAMILY:-}" PWDTINTII_VIEW_SHADE="${_PWDTINTII_SHADE_IDX:-}" "${_pwdtintii_self}/bin/pwdtintii" view
+                     pwdtintii_apply ;;   # safety net: the viewer restores the tint itself on enter/esc (before fzf clears, so no flash); this also re-emits after ctrl-c
     preview)         pwdtintii view ;;    # back-compat: the old static dump is now view
     contrast)        "${_pwdtintii_self}/scripts/contrast-check.sh" ;;
     help|-h|--help)  _pwdtintii_help ;;
