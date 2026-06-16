@@ -232,6 +232,27 @@ teardown() { teardown_sandbox; }
   [[ "$output" != *"38;2;233;236;240"* ]]
 }
 
+@test "pick-toggle flips the group and reflows the picker frame in place" {
+  # ctrl-t swaps the picker's dark<->light group without restarting fzf: it flips
+  # the group in the state dir and emits reload + change-preview/header/prompt +
+  # refresh-preview for the new palette. The focused family (arg 2) drives an OSC
+  # tint to /dev/tty as a side effect (suppressed off-tty), so it is not asserted
+  # here — only that passing it still yields a well-formed action chain.
+  local sd="$TEST_HOME/pstate"; mkdir -p "$sd"
+  printf 'dark\n' > "$sd/grp"
+  printf '%s\n' "$REPO_ROOT/palettes/default.tsv" > "$sd/pal"
+  run "$CLI" pick-toggle "$sd" blue
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"reload("* ]]
+  [[ "$output" == *"list-menu"* ]]
+  [[ "$output" == *"change-preview("* ]]
+  [[ "$output" == *"change-header("* ]]
+  [[ "$output" == *"change-prompt("* ]]
+  [[ "$output" == *"+refresh-preview"* ]]
+  [[ "$output" == *"light.tsv"* ]]          # toggled dark -> light
+  [ "$(cat "$sd/grp")" = "light" ]          # group flipped in the state dir
+}
+
 @test "view exits cleanly and removes its tempdir (fzf stubbed)" {
   # Regression: cmd_view cleaned its tempdir via an EXIT trap over a `local sd`,
   # which fires after the function returns — under set -u that aborted with

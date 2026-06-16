@@ -627,12 +627,18 @@ cmd_pick_header() {
   printf '\033[1;38;2;%s;%s;%sm%s\033[0m' "$r" "$g" "$b" "${1:-}"
 }
 
-# pick-toggle <statedir>: the ctrl-t step of the picker. Flips the active group
-# (dark<->light), records the new palette in the state dir (so the live-tint
-# focus bind and the committed pick read the current one), and prints the fzf
-# action chain that swaps the list, preview, and header in place — no restart.
+# pick-toggle <statedir> [focused-family]: the ctrl-t step of the picker. Flips
+# the active group (dark<->light), records the new palette in the state dir (so
+# the live-tint focus bind and the committed pick read the current one), emits the
+# focused family's tint under the NEW palette to /dev/tty at once (a side effect,
+# like the viewer's view-advance), and prints the fzf action chain that swaps the
+# list, preview, and header in place — no restart. That immediate emit keeps the
+# global background in step with the list reload: list-menu recolors the rows for
+# the new theme (near-black on light), but the bg is driven by the focus event, so
+# without re-emitting here the bg lagged one toggle behind and the recolored list
+# sat unreadable on the old tint until the next arrow key repainted it.
 cmd_pick_toggle() {
-  local sd="$1"
+  local sd="$1" fam="${2:-}"
   local grp; grp=$(cat "$sd/grp" 2>/dev/null || echo dark)
   local newgrp other newpal self
   if [[ "$grp" == dark ]]; then newgrp=light; other=dark; else newgrp=dark; other=light; fi
@@ -640,6 +646,12 @@ cmd_pick_toggle() {
   printf '%s\n' "$newgrp" > "$sd/grp"
   printf '%s\n' "$newpal" > "$sd/pal"
   self="${SELF_DIR}/pwdtintii"
+  # Flip the live terminal tint to the focused family under the new palette now
+  # (see the header comment): emit-family writes OSC to /dev/tty and fails open
+  # with no tty, so the toggle still emits its action chain in tests / off-tty.
+  if [[ -n "$fam" ]]; then
+    PWDTINTII_PALETTE="$newpal" "$self" emit-family "$fam" || true
+  fi
   # Header reflows to the NEW group's theme color (it processes ANSI, so the swap
   # carries the color); the prompt label follows the group; refresh-preview
   # repaints the swatches now (see cmd_view_advance). The rest of the chrome is
