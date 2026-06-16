@@ -23,9 +23,11 @@ DEFAULT = os.path.join(SELF_DIR, "..", "palettes", "default.tsv")
 LIGHT = os.path.join(SELF_DIR, "..", "palettes", "light.tsv")
 
 # Target WCAG relative luminance per shade index (s0 deepest tint -> s3 palest).
-# All comfortably above ~0.308, the floor for WCAG 4.5 vs #303030 dark text, so
-# every shade stays body-text readable; the spread keeps splits distinguishable.
-LADDER = [0.48, 0.60, 0.72, 0.82]
+# All clear ~0.308 (the WCAG 4.5 floor vs #303030 dark text); s0 is lifted to
+# 0.51 so the deepest tint also clears the APCA |Lc| 60 readability floor that
+# palette.bats enforces, matching the dark palette. The spread keeps splits
+# distinguishable.
+LADDER = [0.51, 0.60, 0.72, 0.82]
 # Light and saturated cannot coexist; cap saturation so the pale tints land.
 SAT_CAP = 0.50
 

@@ -3,7 +3,8 @@
 # order — the hash maps key -> families[hash % N], so reordering would land the
 # same directory on a different family and switching themes would reshuffle every
 # workspace's hue. And every shade — light or dark — must stay readable against
-# its theme's text: light.tsv via WCAG body text, default.tsv via an APCA floor.
+# its theme's text: both palettes clear the APCA |Lc| 60 floor, and light.tsv
+# additionally clears WCAG body text.
 
 load helper
 
@@ -82,6 +83,16 @@ fam_column() {
 @test "default.tsv clears the APCA 60 readability floor" {
   command -v python3 >/dev/null 2>&1 || skip "python3 not available"
   run python3 "$REPO_ROOT/scripts/contrast.py" "$REPO_ROOT/palettes/default.tsv" dark --check-floor 60
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"0 below floor"* ]]
+}
+
+# light.tsv is generated to a WCAG luminance ladder; pin the same APCA floor so a
+# generator tweak (or a default.tsv hue edit it derives from) can't quietly drop
+# the deepest tint below readable against dark text.
+@test "light.tsv clears the APCA 60 readability floor" {
+  command -v python3 >/dev/null 2>&1 || skip "python3 not available"
+  run python3 "$REPO_ROOT/scripts/contrast.py" "$REPO_ROOT/palettes/light.tsv" light --check-floor 60
   [ "$status" -eq 0 ]
   [[ "$output" == *"0 below floor"* ]]
 }
