@@ -366,9 +366,12 @@ _pwdtintii_pick_interactive() {
 
   # High-contrast menu over the focused family's live tint: the list carries its
   # own color per-line (list-menu + --ansi) so ctrl-t's reload reflows it
-  # dark<->light in place, and --color paints the chrome (a static --color can't
-  # recolor at runtime). See bin/ cmd_fzf_theme / cmd_list_menu.
+  # dark<->light in place. The chrome --color is theme-neutral gray (a static
+  # --color can't recolor at runtime, and the tint flips dark<->light on toggle);
+  # only the header reflows, carrying its own ANSI color (pick-header) and swapped
+  # by pick-toggle's change-header. See bin/ cmd_fzf_theme / cmd_pick_header.
   local colorspec; colorspec="$(PWDTINTII_PALETTE="$grouppal" "$self" fzf-theme)"
+  local chdr; chdr="$(PWDTINTII_PALETTE="$grouppal" "$self" pick-header "$hdr")"
 
   local -a fzfargs=(
     --ansi
@@ -380,7 +383,7 @@ _pwdtintii_pick_interactive() {
     --bind="change:first"
     --bind="focus:execute-silent(PWDTINTII_PALETTE=\"\$(cat ${sd}/pal)\" ${self} emit-family {})"
     --color="$colorspec"
-    --header="$hdr"
+    --header="$chdr"
   )
   (( toggle )) && fzfargs+=( --bind="ctrl-t:transform(${self} pick-toggle ${sd})" )
 
