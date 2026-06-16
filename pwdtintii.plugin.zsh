@@ -353,6 +353,13 @@ _pwdtintii_pick_interactive() {
   local colorspec; colorspec="$(PWDTINTII_PALETTE="$grouppal" "$self" fzf-theme)"
   local chdr; chdr="$(PWDTINTII_PALETTE="$grouppal" "$self" pick-header "$hdr")"
 
+  # enter/esc re-emit the terminal tint BEFORE fzf tears down, so no default-bg
+  # flash shows between the picker closing and the prompt re-tinting (the picker
+  # repaints the bg per focus): esc → emit-restore (the shell's pre-picker dir
+  # tint, from the PWDTINTII_VIEW_* + palette handed to fzf below) then abort;
+  # enter → re-emit the focused family's tint then accept (the commit path then
+  # sets the real shade). ctrl-t passes the focused family ({}) to pick-toggle so
+  # it flips the live tint to the new palette at once — see bin/ cmd_pick_toggle.
   local -a fzfargs=(
     --ansi
     --prompt="pick ${label} > "
@@ -362,13 +369,22 @@ _pwdtintii_pick_interactive() {
     --preview-window=right:50%:nowrap
     --bind="change:first"
     --bind="focus:execute-silent(PWDTINTII_PALETTE=\"\$(cat ${sd}/pal)\" ${self} emit-family {})"
+    --bind="enter:execute-silent(PWDTINTII_PALETTE=\"\$(cat ${sd}/pal)\" ${self} emit-family {})+accept"
+    --bind="esc:execute-silent(${self} emit-restore)+abort"
     --color="$colorspec"
     --header="$chdr"
   )
-  (( toggle )) && fzfargs+=( --bind="ctrl-t:transform(${self} pick-toggle ${sd})" )
+  (( toggle )) && fzfargs+=( --bind="ctrl-t:transform(${self} pick-toggle ${sd} {})" )
 
+  # PWDTINTII_VIEW_* + the pre-picker palette go to fzf (not exported) so the esc
+  # emit-restore bind can restore the shell's tint; the focus/preview/ctrl-t binds
+  # set their own PWDTINTII_PALETTE per call, so this only feeds emit-restore.
   local sel rc
-  sel=$(PWDTINTII_PALETTE="$grouppal" "$self" list-menu | fzf "${fzfargs[@]}")
+  sel=$(PWDTINTII_PALETTE="$grouppal" "$self" list-menu \
+    | PWDTINTII_PALETTE="$PWDTINTII_PALETTE" \
+      PWDTINTII_VIEW_FAMILY="${_PWDTINTII_FAMILY:-}" \
+      PWDTINTII_VIEW_SHADE="${_PWDTINTII_SHADE_IDX:-}" \
+      fzf "${fzfargs[@]}")
   rc=$?
   # ctrl-t may have switched the group; the committed palette is whatever the
   # state dir now holds. Read it before removing the dir.
