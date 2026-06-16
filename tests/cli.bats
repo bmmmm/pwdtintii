@@ -183,10 +183,13 @@ teardown() { teardown_sandbox; }
   [[ "$output" == *"ptview"* ]]
 }
 
-# ── menu chrome: list-menu (--ansi list) + fzf-theme (--color spec) ───────────
-# The fzf menus sit on the OSC-11 tint; list-menu colors each row per-line so a
-# ctrl-t reload reflows it, fzf-theme paints the static chrome. Both flip by the
-# palette's mean luminance (light text on the dark palette, dark on the light).
+# ── menu chrome: list-menu (--ansi list) + fzf-theme (--color) + pick-header ──
+# The fzf menus sit on the OSC-11 tint. list-menu colors each row per-line so a
+# ctrl-t reload reflows it dark<->light (flips by the palette's mean luminance).
+# The picker's --color chrome (fzf-theme) is theme-NEUTRAL: --color is static per
+# fzf session but the picker toggles the tint dark<->light within one session, so
+# a mid-gray that reads on either tint is the only thing that survives the toggle.
+# Only the header reflows — it carries its own ANSI color (pick-header).
 
 @test "list-menu colors every family with near-white text on the dark palette" {
   run "$CLI" list-menu
@@ -203,22 +206,30 @@ teardown() { teardown_sandbox; }
   [[ "$output" != *"38;2;233;236;240"* ]]
 }
 
-@test "fzf-theme emits a high-contrast color spec for the dark palette" {
+@test "fzf-theme is theme-neutral: identical gray chrome for both palettes" {
   run "$CLI" fzf-theme
   [ "$status" -eq 0 ]
-  [[ "$output" == *"bg+:#4d5563"* ]]            # focused-row block, not the HI text tone
-  [[ "$output" != *"bg+:#e9ecf0"* ]]            # a HI pill over the --ansi HI rows = invisible box
-  [[ "$output" == *"pointer:#e9ecf0:bold"* ]]   # accents are HI, legible over the tint
-  [[ "$output" == *"header:#e9ecf0:bold"* ]]
-}
-
-@test "fzf-theme flips the foreground on the light palette" {
+  local dark_spec="$output"
+  [[ "$dark_spec" == *"bg+:#777d86"* ]]     # focused-row block is mid-gray, reads on either tint
+  [[ "$dark_spec" == *"prompt:#777d86"* ]]
+  [[ "$dark_spec" == *"separator:#777d86"* ]]   # pinned so the terminal default fg can't leak
   run env PWDTINTII_PALETTE="$REPO_ROOT/palettes/light.tsv" "$CLI" fzf-theme
   [ "$status" -eq 0 ]
-  [[ "$output" == *"header:#161a1f:bold"* ]]
-  [[ "$output" == *"bg+:#9ba2ac"* ]]            # focused-row block, dark enough for HI text
-  [[ "$output" == *"pointer:#161a1f:bold"* ]]   # accents are near-black, not near-white
-  [[ "$output" != *"#f0f2f5"* ]]                # the old near-white accent vanished on light
+  [ "$output" = "$dark_spec" ]              # static --color can't reflow → must not depend on the palette
+}
+
+@test "pick-header colors the header near-white on the dark palette" {
+  run "$CLI" pick-header "ENTER pin"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"38;2;233;236;240"* ]]   # near-white HI, embedded so the header reflows on ctrl-t
+  [[ "$output" == *"ENTER pin"* ]]
+}
+
+@test "pick-header flips to near-black on the light palette" {
+  run env PWDTINTII_PALETTE="$REPO_ROOT/palettes/light.tsv" "$CLI" pick-header "ENTER pin"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"38;2;22;26;31"* ]]      # near-black HI
+  [[ "$output" != *"38;2;233;236;240"* ]]
 }
 
 @test "view exits cleanly and removes its tempdir (fzf stubbed)" {
