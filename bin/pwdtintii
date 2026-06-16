@@ -2,17 +2,27 @@
 # pwdtintii — CLI companion to the shell plugin.
 # Invoked by the plugin via its absolute path; the `pwdtintii` shell function
 # shadows this binary on PATH, so interactively you drive it through `pt`.
-# Subcommands:
-#   view                    Merged list+preview browser (fzf; ctrl-t cycles
-#                           swatch/contrast × dark/light)
-#   preview-family <fam>    Colored swatches for a family (stdout, fzf --preview)
-#   preview-contrast <fam>  Swatches + WCAG/APCA scores per shade (fzf --preview)
-#   emit-family <fam>       Emit OSC 11 to /dev/tty (live focus preview)
-#   actions                 Action catalog driving the `pt` hub menu
-#   describe-action <name>  One action's description (for the hub preview pane)
-#   list                    Print all families
-#   palette                 Print the loaded palette path
-#   palette-for <theme>     Print the bundled palette path for dark|light
+# Subcommands — all driven by the plugin / fzf binds, not for direct use; listed
+# in full so this block matches the dispatcher at the foot of the file.
+#   Browser & catalog:
+#     view                    Merged list+preview browser (fzf; ctrl-t cycles
+#                             swatch/contrast × dark/light)
+#     actions                 Action catalog driving the `pt` hub menu
+#     describe-action <name>  One action's description (for the hub preview pane)
+#   Palette readout:
+#     list                    Print all families (plain; scripts + no-fzf parse it)
+#     palette                 Print the loaded palette path
+#     palette-for <theme>     Print the bundled palette path for dark|light
+#   fzf-bind plumbing (preview panes, live tint, in-place reflow):
+#     preview-family <fam>    Colored swatches for a family (fzf --preview)
+#     preview-contrast <fam>  Swatches + WCAG/APCA scores per shade (fzf --preview)
+#     list-menu               Like list, ANSI-colored per row for the menus
+#     emit-family <fam>       Emit a family's focus tone (OSC 11) to /dev/tty
+#     emit-restore            Re-emit the shell's current tint to /dev/tty
+#     fzf-theme               The picker/viewer --color value (theme-neutral)
+#     pick-header <text>      Color a header string in the palette's HI tone
+#     pick-toggle <dir> [fam] Picker ctrl-t step (dark/light); prints fzf actions
+#     view-advance <dir>      Viewer ctrl-t step (cycle); prints fzf actions
 #
 # Resolves the palette from PWDTINTII_PALETTE or ../palettes/default.tsv relative to this script.
 

@@ -90,7 +90,9 @@ there is no manual re-source step.
 
 Short aliases stay as direct accelerators: `ptpick ptlist ptreload ptview
 ptcontrast`. Most commands also map to a `pwdtintii_*` function (e.g.
-`pwdtintii_pick`, `pwdtintii_list`) callable without the aliases.
+`pwdtintii_pick`, `pwdtintii_list`) callable without the aliases. The dispatcher
+also accepts a few command aliases — `ls` (list), `unpin` (auto), `diag`
+(doctor) — plus `pt apply` to force a re-tint of the current prompt.
 
 ## Configuration
 
