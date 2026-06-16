@@ -516,10 +516,15 @@ cmd_view() {
   # Open on the deliberate dark backdrop (state 0); ctrl-t flips it with the cycle.
   { printf '\e]11;%s\a' "$(_pt_view_backdrop "$initpal")" > /dev/tty; } 2>/dev/null || true
 
+  # --height=99%, not 100%: at exactly 100% fzf takes over the alternate screen
+  # (\e[?1049h on open, \e[?1049l on close), and that buffer switch repaints the
+  # whole frame — flashing the terminal's default background on every exit (the
+  # ESC flicker we kept chasing with OSC restores). Any sub-100% height keeps fzf
+  # inline, so closing it just clears its own rows and never repaints the frame.
   PWDTINTII_PALETTE="$initpal" "$self" list-menu | fzf \
       --ansi \
       --prompt='view > ' \
-      --height=100% \
+      --height=99% \
       --reverse \
       --track \
       --id-nth=1 \

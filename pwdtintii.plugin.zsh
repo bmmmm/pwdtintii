@@ -363,7 +363,11 @@ _pwdtintii_pick_interactive() {
   local -a fzfargs=(
     --ansi
     --prompt="pick ${label} > "
-    --height=100%
+    # 99%, not 100%: at 100% fzf takes over the alternate screen, whose
+    # enter/leave repaints the whole frame and flashes the terminal's default
+    # background on exit (the ESC flicker). Sub-100% keeps fzf inline — no
+    # \e[?1049h/l, so closing it never repaints the frame.
+    --height=99%
     --reverse
     --preview="PWDTINTII_PALETTE=${grouppal} ${self} preview-family {}"
     --preview-window=right:50%:nowrap
@@ -529,13 +533,16 @@ pwdtintii() {
 
 # fzf hub: list every action, preview its description, echo the chosen machine
 # name (field 1). Cancel/empty → no output, the caller returns to the prompt.
+# --height stays under 100% so fzf renders inline: at exactly 100% it takes the
+# alternate screen, and that buffer switch repaints the frame and flashes the
+# terminal's default background on exit (the ESC flicker).
 _pwdtintii_menu_pick() {
   local hdr="now: ${_PWDTINTII_FAMILY:-auto} ${_PWDTINTII_SHADE_IDX:-?} · ENTER run · ESC quit"
   _pwdtintii_is_stale && hdr="plugin changed — re-source · ${hdr}"
   "${_pwdtintii_self}/bin/pwdtintii" actions \
     | fzf \
         --prompt='pwdtintii > ' \
-        --height=100% \
+        --height=99% \
         --reverse \
         --delimiter='\t' \
         --with-nth=2 \
