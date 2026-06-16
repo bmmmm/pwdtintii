@@ -2,7 +2,8 @@
 # Palette data integrity. The light variant must mirror default's family set and
 # order — the hash maps key -> families[hash % N], so reordering would land the
 # same directory on a different family and switching themes would reshuffle every
-# workspace's hue. And every light shade must stay readable against dark text.
+# workspace's hue. And every shade — light or dark — must stay readable against
+# its theme's text: light.tsv via WCAG body text, default.tsv via an APCA floor.
 
 load helper
 
@@ -72,4 +73,30 @@ fam_column() {
   run "$REPO_ROOT/scripts/contrast-check.sh" "$REPO_ROOT/palettes/light.tsv" bogus
   [ "$status" -eq 1 ]
   [[ "$output" == *"theme must be"* ]]
+}
+
+# The dark palette has no generated mirror to keep it honest, so guard its tints
+# directly: the APCA |Lc| of the dimmest light text (#d0d0d0) against every shade
+# must clear 60 (the large-UI floor). This is the "Grenze" round 8 set after the
+# saturated green/teal/yellow mid-shades read too faint on the tint.
+@test "default.tsv clears the APCA 60 readability floor" {
+  command -v python3 >/dev/null 2>&1 || skip "python3 not available"
+  run python3 "$REPO_ROOT/scripts/contrast.py" "$REPO_ROOT/palettes/default.tsv" dark --check-floor 60
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"0 below floor"* ]]
+}
+
+@test "the APCA floor guard reports violations (teeth: nothing clears 90)" {
+  # No tint reaches |Lc| 90 against dimmed text (the near-blacks top out near 80),
+  # so this proves the guard flags offenders and exits 1, not vacuously 0.
+  command -v python3 >/dev/null 2>&1 || skip "python3 not available"
+  run python3 "$REPO_ROOT/scripts/contrast.py" "$REPO_ROOT/palettes/default.tsv" dark --check-floor 90
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"below floor"* ]]
+}
+
+@test "--check-floor rejects a non-numeric argument" {
+  run python3 "$REPO_ROOT/scripts/contrast.py" "$REPO_ROOT/palettes/default.tsv" dark --check-floor abc
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"needs a number"* ]]
 }
