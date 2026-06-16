@@ -4,31 +4,32 @@ Entry point for picking up work. Read this first, then pick a section.
 
 ## Status
 
-0.3.0 — released 2026-06-15 (`v0.3.0`). Adds `pt off`, `pt doctor`, a
-light-terminal palette (`light.tsv`) + ctrl-t picker toggle, a self-reloading
-`pt`, a PWD-cached prompt hot-path, palette validation, macOS CI, and the public
-GitHub mirror (full list in CHANGELOG). Locked down with an 85-test bats suite.
-Still alpha. Dotfiles already source the plugin (`~/.zshrc`).
+0.3.0 released 2026-06-15 (`v0.3.0`); unreleased work sits on top of it — see
+the CHANGELOG `[Unreleased]` section (the merged `pt view` browser, APCA scores
+in `pt contrast`, high-contrast fzf menus over the live tint). 0.3.0 itself
+added `pt off`, `pt doctor`, a light-terminal palette (`light.tsv`) + ctrl-t
+picker toggle, a self-reloading `pt`, a PWD-cached prompt hot-path, palette
+validation, macOS CI, and the public GitHub mirror. Covered by the bats suite
+(`grep -c '^@test' tests/*.bats` for the live count). Still alpha. Dotfiles
+already source the plugin (`~/.zshrc`).
 
 ## Next session — start here
 
-0.3.0 is tagged (`v0.3.0`). Two live checks the sandbox couldn't run remain:
+Live UI checks the command sandbox can't run (no tty; OSC 11 / fzf / the prompt
+hook need a real terminal):
 
-1. **ctrl-t dark/light toggle** — shipped unverified (no live tty in the
-   sandbox). Open `pt pick`, press ctrl-t to flip groups (header + swatches
-   change), ENTER from the light group, confirm the shell switches to light and
-   pins. On the light group the preview-pane labels read as dark text on the
-   pale swatches, and the hover/focus background stays light (lifts toward
-   white). (Already verified earlier: `pt doctor` → osc 11 "supported", `pt off`
-   resets the background, `pt pick` re-enables.)
-2. **CI + release** — `v0.3.0` is the first real run of the release job. The
-   workflow now pins `actions/checkout@v4` (the act-based Forgejo runner has no
-   node24 runtime for `@v5`). Confirm the Forgejo run is green and that a
-   matching GitHub Release was cut from the CHANGELOG `[0.3.0]` section.
+1. **ctrl-t dark/light toggle** — open `pt pick`, press ctrl-t to flip groups
+   (header + swatches change), ENTER from the light group, confirm the shell
+   switches to light and pins. On the light group the preview-pane labels read
+   as dark text on the pale swatches, and the hover/focus background stays light
+   (lifts toward white).
+2. **`pt view`** — the merged browser: ctrl-t cycles swatch/contrast × dark/light
+   and the whole frame (backdrop + list colors + header + preview) flips
+   together; ESC/ENTER close it flash-free and restore the shell's tint.
 
-The 85-test suite is green on a real shell (under the command sandbox the `zsh
-pick_shade skips a live PID` test reads red because `kill -0` is blocked there,
-not a real failure).
+The bats suite is green on a real shell. Under the command sandbox the `zsh
+pick_shade skips a live PID` test reads red because `kill -0` is blocked there —
+not a real failure; run the suite on a real shell to confirm.
 
 ## Release smoke test (fresh Ghostty)
 
