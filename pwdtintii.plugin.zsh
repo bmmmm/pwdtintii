@@ -358,8 +358,11 @@ _pwdtintii_pick_interactive() {
   # repaints the bg per focus): esc → emit-restore (the shell's pre-picker dir
   # tint, from the PWDTINTII_VIEW_* + palette handed to fzf below) then abort;
   # enter → re-emit the focused family's tint then accept (the commit path then
-  # sets the real shade). ctrl-t passes the focused family ({}) to pick-toggle so
-  # it flips the live tint to the new palette at once — see bin/ cmd_pick_toggle.
+  # sets the real shade). ctrl-t chains transform(pick-toggle) — which flips the
+  # group + records the new palette in $sd/pal — with execute-silent(emit-family
+  # {}) under that new palette, the same coordinated path as focus: emitting the
+  # tint as a raw side effect *inside* the transform races fzf's renderer and gets
+  # dropped, so the bg used to lag a toggle behind. See bin/ cmd_pick_toggle.
   local -a fzfargs=(
     --ansi
     --prompt="pick ${label} > "
@@ -378,7 +381,7 @@ _pwdtintii_pick_interactive() {
     --color="$colorspec"
     --header="$chdr"
   )
-  (( toggle )) && fzfargs+=( --bind="ctrl-t:transform(${self} pick-toggle ${sd} {})" )
+  (( toggle )) && fzfargs+=( --bind="ctrl-t:transform(${self} pick-toggle ${sd})+execute-silent(PWDTINTII_PALETTE=\"\$(cat ${sd}/pal)\" ${self} emit-family {})" )
 
   # PWDTINTII_VIEW_* + the pre-picker palette go to fzf (not exported) so the esc
   # emit-restore bind can restore the shell's tint; the focus/preview/ctrl-t binds

@@ -19,9 +19,10 @@
 #     list-menu               Like list, ANSI-colored per row for the menus
 #     emit-family <fam>       Emit a family's focus tone (OSC 11) to /dev/tty
 #     emit-restore            Re-emit the shell's current tint to /dev/tty
+#     emit-backdrop <pal>     Emit a palette's viewer backdrop (OSC 11) to /dev/tty
 #     fzf-theme               The picker/viewer --color value (theme-neutral)
 #     pick-header <text>      Color a header string in the palette's HI tone
-#     pick-toggle <dir> [fam] Picker ctrl-t step (dark/light); prints fzf actions
+#     pick-toggle <dir>       Picker ctrl-t step (dark/light); prints fzf actions
 #     view-advance <dir>      Viewer ctrl-t step (cycle); prints fzf actions
 #
 # Resolves the palette from PWDTINTII_PALETTE or ../palettes/default.tsv relative to this script.
@@ -446,15 +447,30 @@ cmd_emit_restore() {
   { printf '\e]11;%s\a' "$hex" > /dev/tty; } 2>/dev/null || true
 }
 
+# emit-backdrop <palette>: emit that palette's viewer backdrop (the dark/light
+# neutral from _pt_view_backdrop) to /dev/tty. The viewer's ctrl-t routes its
+# backdrop flip through this via a coordinated execute-silent action, instead of
+# writing the OSC as a raw side effect during the transform — the latter races
+# fzf's renderer and the flip got dropped until the next event. Fails open with no
+# tty (the group redirect swallows the failed redirect), so it stays test-safe.
+cmd_emit_backdrop() {
+  local pal="${1:-}"
+  [[ -z "$pal" ]] && return 0
+  { printf '\e]11;%s\a' "$(_pt_view_backdrop "$pal")" > /dev/tty; } 2>/dev/null || true
+}
+
 # view-advance <statedir>: the ctrl-t step of the viewer. Reads the current cycle
 # index + the state table (one "palette<TAB>preview-cmd" line per state, written
 # by cmd_view), advances the index (wrapping), and repaints the WHOLE frame for
-# the new state's theme: it flips the terminal backdrop (OSC 11 to /dev/tty, a
-# side effect — every cycle step crosses dark<->light), then prints the fzf action
-# chain that reloads the list (so its per-line colors reflow dark<->light, kept on
-# the focused family by --track --id-nth), swaps the header (its own ANSI color,
-# via pick-header) and the preview, and forces the preview to run now
-# (refresh-preview — else fzf keeps the cached render until the next arrow key).
+# the new state's theme: it records the new state's palette in the state dir
+# ($sd/pal) and prints the fzf action chain that reloads the list (so its per-line
+# colors reflow dark<->light, kept on the focused family by --track --id-nth),
+# swaps the header (its own ANSI color, via pick-header) and the preview, and
+# forces the preview to run now (refresh-preview — else fzf keeps the cached render
+# until the next arrow key). The terminal backdrop flip is NOT written here: a raw
+# OSC write during a transform races fzf's renderer and gets dropped (the same
+# defect the picker's ctrl-t hit), so the ctrl-t bind chains a coordinated
+# execute-silent(emit-backdrop $sd/pal) after this transform.
 # Internal: fzf calls it through transform(), not a user subcommand.
 cmd_view_advance() {
   local sd="$1"
@@ -466,8 +482,8 @@ cmd_view_advance() {
   printf '%s\n' "$idx" > "$sd/idx"
   line=$(sed -n "$(( idx + 1 ))p" "$sd/states")
   IFS=$'\t' read -r pal pcmd <<< "$line"
+  printf '%s\n' "$pal" > "$sd/pal"
   self="${SELF_DIR}/pwdtintii"
-  { printf '\e]11;%s\a' "$(_pt_view_backdrop "$pal")" > /dev/tty; } 2>/dev/null || true
   local hdr chdr
   hdr=$(_pt_view_header_text)
   # Fall back to the plain (uncolored) header if pick-header ever fails, so ctrl-t
@@ -552,7 +568,7 @@ cmd_view() {
       --bind="enter:execute-silent(${self} emit-restore)+abort" \
       --bind="esc:execute-silent(${self} emit-restore)+abort" \
       --bind='change:first' \
-      --bind="ctrl-t:transform(${self} view-advance ${sd})" \
+      --bind="ctrl-t:transform(${self} view-advance ${sd})+execute-silent(${self} emit-backdrop \"\$(cat ${sd}/pal)\")" \
       --color="$colorspec" \
       --header="${chdr}" \
       >/dev/null || true
@@ -658,18 +674,18 @@ cmd_pick_header() {
   printf '\033[1;38;2;%s;%s;%sm%s\033[0m' "$r" "$g" "$b" "${1:-}"
 }
 
-# pick-toggle <statedir> [focused-family]: the ctrl-t step of the picker. Flips
-# the active group (dark<->light), records the new palette in the state dir (so
-# the live-tint focus bind and the committed pick read the current one), emits the
-# focused family's tint under the NEW palette to /dev/tty at once (a side effect,
-# like the viewer's view-advance), and prints the fzf action chain that swaps the
-# list, preview, and header in place — no restart. That immediate emit keeps the
-# global background in step with the list reload: list-menu recolors the rows for
-# the new theme (near-black on light), but the bg is driven by the focus event, so
-# without re-emitting here the bg lagged one toggle behind and the recolored list
-# sat unreadable on the old tint until the next arrow key repainted it.
+# pick-toggle <statedir>: the ctrl-t step of the picker. Flips the active group
+# (dark<->light), records the new palette in the state dir (so the live-tint focus
+# bind and the committed pick read the current one), and prints the fzf action
+# chain that swaps the list, preview, header, and prompt in place — no restart.
+# It does NOT emit the live tint itself: a raw OSC write during a transform races
+# fzf's renderer and gets dropped (the bug where the recolored list — near-black on
+# light — sat unreadable on the old dark tint until the next arrow key). The ctrl-t
+# bind instead chains a coordinated execute-silent(emit-family {}) after this
+# transform — the same proven path the focus bind uses — reading the $sd/pal
+# written here, so the global background flips together with the reloaded list.
 cmd_pick_toggle() {
-  local sd="$1" fam="${2:-}"
+  local sd="$1"
   local grp; grp=$(cat "$sd/grp" 2>/dev/null || echo dark)
   local newgrp other newpal self
   if [[ "$grp" == dark ]]; then newgrp=light; other=dark; else newgrp=dark; other=light; fi
@@ -677,12 +693,6 @@ cmd_pick_toggle() {
   printf '%s\n' "$newgrp" > "$sd/grp"
   printf '%s\n' "$newpal" > "$sd/pal"
   self="${SELF_DIR}/pwdtintii"
-  # Flip the live terminal tint to the focused family under the new palette now
-  # (see the header comment): emit-family writes OSC to /dev/tty and fails open
-  # with no tty, so the toggle still emits its action chain in tests / off-tty.
-  if [[ -n "$fam" ]]; then
-    PWDTINTII_PALETTE="$newpal" "$self" emit-family "$fam" || true
-  fi
   # Header reflows to the NEW group's theme color (it processes ANSI, so the swap
   # carries the color); the prompt label follows the group; refresh-preview
   # repaints the swatches now (see cmd_view_advance). The rest of the chrome is
@@ -770,6 +780,7 @@ case "$cmd" in
   preview-contrast) cmd_preview_contrast "${1:-}" ;;
   emit-family)      cmd_emit_family "${1:-}" ;;
   emit-restore)     cmd_emit_restore ;;
+  emit-backdrop)    cmd_emit_backdrop "${1:-}" ;;
   actions)          cmd_actions ;;
   describe-action)  cmd_describe_action "${1:-}" ;;
   list)             cmd_list ;;
