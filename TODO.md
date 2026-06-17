@@ -15,21 +15,22 @@ already source the plugin (`~/.zshrc`).
 
 ## Next session — start here
 
-Live UI checks the command sandbox can't run (no tty; OSC 11 / fzf / the prompt
-hook need a real terminal):
+The `ctrl-t` live-tint saga is resolved: in both `pt pick` and `pt view` the
+terminal background now flips together with the list/swatches (routed through
+fzf's coordinated `execute-silent`, not a raw `transform` write fzf dropped), and
+ENTER/ESC close flash-free (inline sub-100% fzf). `pt pick` is user-confirmed on
+a real terminal; `pt view` rides the same fix path. See the CHANGELOG
+`[Unreleased]` → Fixed for the full list (also: `$?` preservation, the
+palette-path normalization that kept the toggle alive across a commit, array
+`PROMPT_COMMAND`, newline-less palettes, zsh `nounset`).
 
-1. **ctrl-t dark/light toggle** — open `pt pick`, press ctrl-t to flip groups
-   (header + swatches change), ENTER from the light group, confirm the shell
-   switches to light and pins. On the light group the preview-pane labels read
-   as dark text on the pale swatches, and the hover/focus background stays light
-   (lifts toward white).
-2. **`pt view`** — the merged browser: ctrl-t cycles swatch/contrast × dark/light
-   and the whole frame (backdrop + list colors + header + preview) flips
-   together; ESC/ENTER close it flash-free and restore the shell's tint.
+Remaining live spot-check (the command sandbox has no tty for OSC 11 / fzf): a
+fresh-terminal pass of the release checklist below — the picker ctrl-t flip,
+light-group preview legibility, and a clean flash-free exit.
 
-The bats suite is green on a real shell. Under the command sandbox the `zsh
-pick_shade skips a live PID` test reads red because `kill -0` is blocked there —
-not a real failure; run the suite on a real shell to confirm.
+The bats suite is green on a real shell (115 tests). Under the command sandbox
+the `zsh pick_shade skips a live PID` test reads red because `kill -0` is blocked
+there — not a real failure; run the suite on a real shell to confirm.
 
 ## Release smoke test (fresh Ghostty)
 

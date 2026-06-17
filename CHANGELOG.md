@@ -29,6 +29,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `scripts/preview.sh` — the static palette dump is folded into `pt view`'s
   colored browser. `pt preview` stays as a back-compat alias for `pt view`.
 
+### Fixed
+- The `ctrl-t` dark/light flip in `pt pick` and `pt view` now repaints the
+  terminal background together with the list and swatches instead of lagging a
+  keystroke behind (the background used to catch up only on the next arrow key).
+  The live tint is routed through fzf's coordinated `execute-silent`, not a raw
+  OSC write during the `transform`, which fzf's renderer dropped.
+- Closing the picker or viewer (ENTER/ESC) no longer flashes the terminal's
+  default background: fzf renders inline (sub-100% height), so its exit never
+  repaints the whole frame.
+- After a `ctrl-t` toggle to the other group, committing a pick no longer
+  disables the `ctrl-t` toggle on the next `pt pick`. The bundled-palette path
+  the picker compares by string is normalized, so a commit can't leave
+  `PWDTINTII_PALETTE` in a `bin/..` form that mismatched both bundled paths.
+- The prompt hook preserves `$?`, so a prompt that shows the last command's exit
+  status (zsh `%?`, or a bash prompt reading a captured `$?`) is no longer reset
+  to success on every command by the background emit.
+- A `PROMPT_COMMAND` array (bash 5.1+) no longer double-registers the hook and
+  emits OSC 11 twice per prompt — the install now scans every element.
+- A custom palette or overrides file without a trailing newline keeps its last
+  row instead of silently dropping it.
+- The zsh plugin runs cleanly under a user's `setopt nounset`, matching the bash
+  plugin under `set -u`.
+
 ## [0.3.0] — 2026-06-15
 
 ### Added
