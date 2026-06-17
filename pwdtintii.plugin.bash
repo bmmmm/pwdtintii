@@ -86,7 +86,11 @@ _pwdtintii_load_palette() {
   _pwdtintii_shades=()
   _pwdtintii_families=()
   local family s0 s1 s2 s3 sh ok
-  while IFS=$'\t' read -r family s0 s1 s2 s3; do
+  # `|| [[ -n "$family" ]]` keeps the last row even when a hand-edited palette
+  # ends without a trailing newline — read returns non-zero there but still fills
+  # the fields, so without this the final family is silently dropped. The file is
+  # read raw (no grep/sed upstream to re-add the newline), so the guard is real.
+  while IFS=$'\t' read -r family s0 s1 s2 s3 || [[ -n "$family" ]]; do
     [[ -z "$family" || "$family" == "family" || "$family" == \#* ]] && continue
     ok=1
     for sh in "$s0" "$s1" "$s2" "$s3"; do
@@ -102,7 +106,7 @@ _pwdtintii_load_overrides() {
   _pwdtintii_overrides=()
   [[ -z "${PWDTINTII_OVERRIDES_FILE:-}" || ! -f "$PWDTINTII_OVERRIDES_FILE" ]] && return
   local proj family
-  while IFS=$'\t' read -r proj family; do
+  while IFS=$'\t' read -r proj family || [[ -n "$proj" ]]; do   # keep a newline-less last row
     [[ -z "$proj" || "$proj" == \#* ]] && continue
     _pwdtintii_overrides[$proj]=$family
   done < "$PWDTINTII_OVERRIDES_FILE"
@@ -269,8 +273,8 @@ pwdtintii_apply() {
   fi
 
   local shades
-  read -r -a shades <<< "${_pwdtintii_shades[$family]}"
-  _pwdtintii_emit "${shades[$shade_idx]}"
+  read -r -a shades <<< "${_pwdtintii_shades[$family]:-}"
+  _pwdtintii_emit "${shades[$shade_idx]:-}"
 }
 
 # ── Public: pick ─────────────────────────────────────────────────────────────
@@ -641,6 +645,7 @@ _pwdtintii_precmd() { local __pt_rc=$?; pwdtintii_apply; return "$__pt_rc"; }
 # reformatted ";" separator (string) or a hook sitting in a non-[0] element (array)
 # used to slip past a [0]-only substring check and double-register, emitting OSC 11
 # twice per prompt. zsh gets this from add-zsh-hook's exact-membership dedupe.
+# shellcheck disable=SC2178  # PROMPT_COMMAND is deliberately string-OR-array (bash 5.1+); each branch handles one form
 _pwdtintii_install_hook() {
   local hook=_pwdtintii_precmd e
   if [[ "$(declare -p PROMPT_COMMAND 2>/dev/null)" == "declare -a"* ]]; then

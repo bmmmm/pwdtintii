@@ -309,6 +309,19 @@ teardown() { teardown_sandbox; }
   [ "$(cat "$sd/pal")" = "$REPO_ROOT/palettes/light.tsv" ]   # new palette recorded for the execute-silent backdrop emit
 }
 
+@test "view-advance survives a non-numeric idx (no set -u abort, treated as 0)" {
+  # The cat-fallback only covers a missing idx file; a corrupted non-numeric token
+  # would crash the (( idx + 1 )) arithmetic under set -u and silently no-op ctrl-t.
+  local sd="$TEST_HOME/vstate2"; mkdir -p "$sd"
+  printf 'garbage\n' > "$sd/idx"
+  printf '%s\tpreview-family\n%s\tpreview-contrast\n' \
+    "$REPO_ROOT/palettes/default.tsv" "$REPO_ROOT/palettes/light.tsv" > "$sd/states"
+  run "$CLI" view-advance "$sd"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"reload("* ]]
+  [ "$(cat "$sd/idx")" -eq 1 ]   # garbage treated as 0, advanced to 1
+}
+
 @test "view backdrop is a dark neutral for the dark palette, light for the light one" {
   # The viewer tints the terminal to a deliberate dark default and flips it to a
   # light neutral on ctrl-t, so the global background tracks the dark/light cycle

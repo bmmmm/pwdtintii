@@ -69,7 +69,11 @@ _pwdtintii_load_palette() {
   _pwdtintii_shades=()
   _pwdtintii_families=()
   local family s0 s1 s2 s3 sh ok
-  while IFS=$'\t' read -r family s0 s1 s2 s3; do
+  # `|| [[ -n "$family" ]]` keeps the last row even when a hand-edited palette
+  # ends without a trailing newline — read returns non-zero there but still fills
+  # the fields, so without this the final family is silently dropped. The file is
+  # read raw (no grep/sed upstream to re-add the newline), so the guard is real.
+  while IFS=$'\t' read -r family s0 s1 s2 s3 || [[ -n "$family" ]]; do
     [[ -z "$family" || "$family" == "family" || "$family" == \#* ]] && continue
     ok=1
     for sh in "$s0" "$s1" "$s2" "$s3"; do
@@ -85,7 +89,7 @@ _pwdtintii_load_overrides() {
   _pwdtintii_overrides=()
   [[ -z "${PWDTINTII_OVERRIDES_FILE:-}" || ! -f "$PWDTINTII_OVERRIDES_FILE" ]] && return
   local proj family
-  while IFS=$'\t' read -r proj family; do
+  while IFS=$'\t' read -r proj family || [[ -n "$proj" ]]; do   # keep a newline-less last row
     [[ -z "$proj" || "$proj" == \#* ]] && continue
     _pwdtintii_overrides[$proj]=$family
   done < "$PWDTINTII_OVERRIDES_FILE"
@@ -122,7 +126,7 @@ _pwdtintii_family_for() {
   local key="$1"
   (( ${#_pwdtintii_families} == 0 )) && return 1
   local proj="${key##*/}"
-  if [[ -n "$proj" && -n "${_pwdtintii_overrides[$proj]}" ]]; then
+  if [[ -n "$proj" && -n "${_pwdtintii_overrides[$proj]:-}" ]]; then
     print -r -- "${_pwdtintii_overrides[$proj]}"
     return
   fi
@@ -180,7 +184,7 @@ _pwdtintii_pick_shade() {
     pick="$forced"
   else
     pick=0
-    for pick in 0 1 2 3; do [[ -z "${in_use[$pick]}" ]] && break; done
+    for pick in 0 1 2 3; do [[ -z "${in_use[$pick]:-}" ]] && break; done
   fi
   printf '%s\t%s\t%s\n' "$my_pid" "$pick" "$(date +%s)" >> "${reg}.new"
   mv "${reg}.new" "$reg"
@@ -191,7 +195,9 @@ _pwdtintii_pick_shade() {
 # Drop this shell's entry from its registry; remove the file if it was the last.
 # Lock-free by design: the exit hook must stay fast and never hang.
 _pwdtintii_release() {
-  [[ -n "$_PWDTINTII_REG" && -f "$_PWDTINTII_REG" ]] || return 0
+  # `:-` on every state-var read so the plugin survives a user's `setopt nounset`,
+  # matching the bash side (which guards the same reads with `${VAR:-}`).
+  [[ -n "${_PWDTINTII_REG:-}" && -f "${_PWDTINTII_REG:-}" ]] || return 0
   local tmp="${_PWDTINTII_REG}.t" rc
   grep -v "^$$"$'\t' "$_PWDTINTII_REG" > "$tmp" 2>/dev/null; rc=$?
   if (( rc == 0 )); then
@@ -214,12 +220,12 @@ _pwdtintii_emit() {
 # ── Public: apply current dir's color ────────────────────────────────────────
 pwdtintii_apply() {
   (( ${#_pwdtintii_families} == 0 )) && return 0
-  [[ -n "$_PWDTINTII_DISABLED" ]] && return 0
+  [[ -n "${_PWDTINTII_DISABLED:-}" ]] && return 0
   local key family shade_idx
   # Cache the dir-key by $PWD: resolving it forks a subshell and stat-walks for
   # the git root on every prompt. Skip both while $PWD is unchanged. Tradeoff: a
   # fresh `git init` in the current dir is picked up on the next cd, not at once.
-  if [[ "$PWD" != "$_PWDTINTII_LAST_PWD" || -z "$_PWDTINTII_LAST_KEY" ]]; then
+  if [[ "$PWD" != "${_PWDTINTII_LAST_PWD:-}" || -z "${_PWDTINTII_LAST_KEY:-}" ]]; then
     key=$($PWDTINTII_DIR_KEY_FN)
     _PWDTINTII_LAST_PWD="$PWD"
     _PWDTINTII_LAST_KEY="$key"
@@ -227,11 +233,11 @@ pwdtintii_apply() {
     key="$_PWDTINTII_LAST_KEY"
   fi
 
-  if [[ -n "$_PWDTINTII_FORCED_FAMILY" ]]; then
+  if [[ -n "${_PWDTINTII_FORCED_FAMILY:-}" ]]; then
     family="$_PWDTINTII_FORCED_FAMILY"
   fi
 
-  if [[ "$_PWDTINTII_PINNED" != "$key" || -n "$_PWDTINTII_FORCE_REAPPLY" ]]; then
+  if [[ "${_PWDTINTII_PINNED:-}" != "$key" || -n "${_PWDTINTII_FORCE_REAPPLY:-}" ]]; then
     _pwdtintii_release
     local keyhash
     keyhash=$(print -rn -- "$key" | $_PWDTINTII_HASHCMD | cut -c1-12)
@@ -249,13 +255,13 @@ pwdtintii_apply() {
     [[ -z "$family" ]] && family="$_PWDTINTII_FAMILY"
   fi
 
-  local shades=(${=_pwdtintii_shades[$family]})
+  local shades=(${=_pwdtintii_shades[$family]:-})
   _pwdtintii_emit "${shades[$(( shade_idx + 1 ))]}"
 }
 
 # ── Public: pin a family for this shell ──────────────────────────────────────
 pwdtintii_pick() {
-  local family="$1"
+  local family="${1:-}"
   unset _PWDTINTII_DISABLED
   # Accept bare `auto` too, not just `--auto`/`-`: `pt pick auto` is the natural
   # conflation of `pt auto` and `pt pick <family>`, and no family is named auto.

@@ -52,6 +52,21 @@ teardown() { teardown_sandbox; }
   [ "$a" = "$b" ]
 }
 
+# A hand-edited palette without a trailing newline must not silently lose its
+# last family. The loader reads the file raw (no grep/sed upstream to re-add the
+# newline), so both shells need the `|| [[ -n "$family" ]]` last-line guard — and
+# must agree, since the last family vanishing in only one shell would also break
+# the cross-shell hash mapping.
+@test "palette load keeps a newline-less last family (bash and zsh)" {
+  printf 'aaa\t#001f70\t#002d8f\t#0a38a8\t#1442c0\n' >  "$TEST_HOME/nonl.tsv"
+  printf 'zzz\t#701f00\t#8f2d00\t#a8380a\t#c04214'   >> "$TEST_HOME/nonl.tsv"   # no trailing newline
+  local b z
+  b="$(PWDTINTII_PALETTE="$TEST_HOME/nonl.tsv" bash_eval / / 'printf "%s\n" "${_pwdtintii_families[*]}"')"
+  z="$(PWDTINTII_PALETTE="$TEST_HOME/nonl.tsv" zsh_eval  / / 'printf "%s\n" "${_pwdtintii_families[*]}"')"
+  [[ "$b" == *"aaa"* && "$b" == *"zzz"* ]]
+  [[ "$z" == *"aaa"* && "$z" == *"zzz"* ]]
+}
+
 # The load-bearing index-base invariant: bash apply emits ${shades[$shade_idx]}
 # (0-based) and zsh emits ${shades[$((shade_idx+1))]} (1-based). For a given
 # (family, shade) the resulting OSC-11 hex MUST be byte-identical — otherwise the
