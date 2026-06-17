@@ -153,6 +153,18 @@ teardown() { teardown_sandbox; }
   [ "$output" = "n=1" ]
 }
 
+# The precmd hook runs between the user's command and the prompt; it must hand
+# $? back untouched so %? (and any prompt reading $?) shows the real status, not
+# pwdtintii_apply's 0. bash guards this in plugin.bats; this is the zsh side.
+@test "zsh precmd hook preserves \$? (the prompt %? shows the real status)" {
+  run zsh_eval /testhome /testhome '
+    ( exit 42 )                        # a recognizable non-zero status
+    _pwdtintii_precmd >/dev/null 2>&1
+    print "rc=$?"
+  '
+  [[ "$output" == *"rc=42"* ]]
+}
+
 # The `pt` self-reload parse-checks before sourcing in both plugins; plugin.bats
 # exercises the bash side, this guards the zsh side.
 @test "zsh self-reload refuses a syntactically broken plugin (keeps the running one)" {
