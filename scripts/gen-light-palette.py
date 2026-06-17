@@ -18,6 +18,8 @@ import colorsys
 import os
 import sys
 
+from palette_math import hex_to_rgb, wcag_lum
+
 SELF_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT = os.path.join(SELF_DIR, "..", "palettes", "default.tsv")
 LIGHT = os.path.join(SELF_DIR, "..", "palettes", "light.tsv")
@@ -30,18 +32,6 @@ LIGHT = os.path.join(SELF_DIR, "..", "palettes", "light.tsv")
 LADDER = [0.51, 0.60, 0.72, 0.82]
 # Light and saturated cannot coexist; cap saturation so the pale tints land.
 SAT_CAP = 0.50
-
-
-def wcag_lum(r, g, b):
-    def lin(c):
-        return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
-
-    return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
-
-
-def hex_to_rgb(h):
-    h = h.lstrip("#")
-    return tuple(int(h[i : i + 2], 16) / 255 for i in (0, 2, 4))
 
 
 def rgb_to_hex(r, g, b):
