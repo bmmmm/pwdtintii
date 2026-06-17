@@ -111,3 +111,15 @@ fam_column() {
   [ "$status" -eq 2 ]
   [[ "$output" == *"needs a number"* ]]
 }
+
+# Unit tests for the shared color-math module (scripts/palette_math.py): hex
+# parsing, WCAG luminance, integer YIQ, and the APCA SA98G engine against its
+# published reference pairs — locking the constants that contrast.py and
+# gen-light-palette.py now share, which the palette-level CLI tests only exercise
+# black-box.
+@test "palette_math unit tests pass (WCAG / YIQ / APCA reference pairs)" {
+  command -v python3 >/dev/null 2>&1 || skip "python3 not available"
+  run python3 "$REPO_ROOT/tests/test_palette_math.py"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"all unit assertions passed"* ]]
+}

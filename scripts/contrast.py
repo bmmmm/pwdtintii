@@ -21,6 +21,8 @@ reads >=75 body, 60-75 large UI, <45 sub-readable.
 import os
 import sys
 
+from palette_math import wcag_lum_hex as lum, apca_lc, best_fg
+
 # ── arg parsing ──────────────────────────────────────────────────────────────
 args = sys.argv[1:]
 row_family = None
@@ -57,62 +59,11 @@ if theme not in ("auto", "dark", "light"):
 
 
 # ── WCAG 2.x ──────────────────────────────────────────────────────────────────
-def lum(hexstr):
-    h = hexstr.lstrip('#')
-    r, g, b = (int(h[i:i+2], 16) / 255 for i in (0, 2, 4))
-    def lin(c): return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
-    return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
-
-
+# lum() is wcag_lum_hex from palette_math; apca_lc/best_fg are the APCA engine,
+# also from palette_math (the single home for the perceptual math).
 def contrast(a, b):
     la, lb = sorted([lum(a), lum(b)], reverse=True)
     return (la + 0.05) / (lb + 0.05)
-
-
-# ── APCA SA98G v0.1.9 — perceptual contrast Lc (constants from apca-w3.js). ─────
-# Signed: + dark text on light bg, - light text on dark bg; magnitude = readability.
-_SR, _SG, _SB, _TRC = 0.2126729, 0.7151522, 0.0721750, 2.4
-_BLK_THR, _BLK_CLMP = 0.022, 1.414
-_N_BG, _N_TX, _R_BG, _R_TX = 0.56, 0.57, 0.65, 0.62
-_SCALE, _OFFSET, _LOCLIP, _DYMIN = 1.14, 0.027, 0.1, 0.0005
-
-
-def _apca_y(hexstr):
-    h = hexstr.lstrip('#')
-    r, g, b = (int(h[i:i+2], 16) / 255 for i in (0, 2, 4))
-    y = _SR * r**_TRC + _SG * g**_TRC + _SB * b**_TRC
-    return y + (_BLK_THR - y) ** _BLK_CLMP if y <= _BLK_THR else y
-
-
-def apca_lc(txt, bg):
-    ty, by = _apca_y(txt), _apca_y(bg)
-    if abs(by - ty) < _DYMIN:
-        return 0.0
-    if by > ty:
-        s = (by ** _N_BG - ty ** _N_TX) * _SCALE
-        out = 0.0 if s < _LOCLIP else s - _OFFSET
-    else:
-        s = (by ** _R_BG - ty ** _R_TX) * _SCALE
-        out = 0.0 if s > -_LOCLIP else s + _OFFSET
-    return out * 100.0
-
-
-# Best foreground: the theme-appropriate candidate that maximises |Lc|.
-_CAND = {
-    'dark':  ['#ffffff', '#f0f0f0', '#d0d0d0', '#b0b0b0'],
-    'light': ['#000000', '#1a1a1a', '#303030', '#505050'],
-}
-
-
-def _yiq(hexstr):
-    h = hexstr.lstrip('#')
-    r, g, b = (int(h[i:i+2], 16) for i in (0, 2, 4))
-    return (r * 299 + g * 587 + b * 114) // 1000
-
-
-def best_fg(bg, theme):
-    cand = _CAND['light'] if (theme == 'light' or _yiq(bg) >= 128) else _CAND['dark']
-    return max(cand, key=lambda fg: abs(apca_lc(fg, bg)))
 
 
 # ── load palette ───────────────────────────────────────────────────────────────
