@@ -24,6 +24,18 @@ teardown() { teardown_sandbox; }
   [ "$output" = "$PWDTINTII_PALETTE" ]
 }
 
+@test "palette-for emits a normalized path (no bin/.. for string-equality)" {
+  # The plugin compares this output by STRING against its own canonical palettes/
+  # dir (the picker's dark/light group check). A bin/../palettes/… form would
+  # differ and silently drop the ctrl-t toggle after a commit, so guard it here.
+  run "$CLI" palette-for light
+  [ "$status" -eq 0 ]
+  [ "$output" = "$REPO_ROOT/palettes/light.tsv" ]
+  [[ "$output" != *"/../"* ]]
+  run "$CLI" palette-for dark
+  [ "$output" = "$REPO_ROOT/palettes/default.tsv" ]
+}
+
 @test "preview-family renders a known family" {
   run "$CLI" preview-family blue
   [ "$status" -eq 0 ]
