@@ -259,15 +259,45 @@ teardown() { teardown_sandbox; }
   need_bash
   # A framework that spaces out the `;` separators slips past the substring
   # guard; the one-shot install flag must stop a self-reload from appending
-  # pwdtintii_apply a second time (which would emit OSC 11 twice per prompt).
+  # _pwdtintii_precmd a second time (which would emit OSC 11 twice per prompt).
   run bash_eval "$TEST_HOME" "$TEST_HOME" '
-    PROMPT_COMMAND="starship_precmd ; pwdtintii_apply"   # space-padded separator
-    _PWDTINTII_LOADED_MTIME=1                            # force staleness
-    pwdtintii list >/dev/null 2>&1                       # dispatch → self-reload
-    n=$(grep -o pwdtintii_apply <<< "$PROMPT_COMMAND" | grep -c .)
+    PROMPT_COMMAND="starship_precmd ; _pwdtintii_precmd"   # space-padded separator
+    _PWDTINTII_LOADED_MTIME=1                              # force staleness
+    pwdtintii list >/dev/null 2>&1                         # dispatch → self-reload
+    n=$(grep -o _pwdtintii_precmd <<< "$PROMPT_COMMAND" | grep -c .)
     echo "count=$n"
   '
   [[ "$output" == *"count=1"* ]]
+}
+
+@test "hook install dedupes an array PROMPT_COMMAND (bash 5.1+), no double OSC 11" {
+  need_bash
+  # bash 5.1 lets PROMPT_COMMAND be an array. The old [0]-only substring check
+  # missed a hook sitting in a later element and appended a second copy; install
+  # now scans every element, so a pre-existing hook in a non-[0] slot blocks it.
+  run bash_eval "$TEST_HOME" "$TEST_HOME" '
+    [[ ${BASH_VERSINFO[0]} -gt 5 || ( ${BASH_VERSINFO[0]} -eq 5 && ${BASH_VERSINFO[1]} -ge 1 ) ]] \
+      || { echo "count=1"; exit 0; }   # array PROMPT_COMMAND predates 5.1 — nothing to test
+    unset _PWDTINTII_HOOK_INSTALLED
+    PROMPT_COMMAND=( "starship_precmd" "_pwdtintii_precmd" )   # our hook already in [1]
+    _pwdtintii_install_hook
+    n=0; for e in "${PROMPT_COMMAND[@]}"; do [[ "$e" == *_pwdtintii_precmd* ]] && (( ++n )); done
+    echo "count=$n"
+  '
+  [[ "$output" == *"count=1"* ]]
+}
+
+@test "the prompt hook preserves \$? (the prompt shows the real exit status)" {
+  need_bash
+  # pwdtintii_apply returns 0; without restoring $? a prompt that reads the last
+  # exit status (a captured $?, zsh %?) would always show success. _pwdtintii_precmd
+  # must hand back the status it was entered with.
+  run bash_eval "$TEST_HOME" "$TEST_HOME" '
+    ( exit 42 )                        # a recognizable non-zero status
+    _pwdtintii_precmd >/dev/null 2>&1
+    echo "rc=$?"
+  '
+  [[ "$output" == *"rc=42"* ]]
 }
 
 @test "self-reload refuses a syntactically broken plugin (keeps the running one)" {

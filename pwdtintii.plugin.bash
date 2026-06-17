@@ -630,16 +630,29 @@ if (( ${#_pwdtintii_families[@]} == 0 )); then
   printf '%s\n' "pwdtintii: palette '$PWDTINTII_PALETTE' has no families — tinting disabled" >&2
 fi
 
-# Register the prompt hook exactly once per shell. A self-reload re-sources this
-# file, so a one-shot flag keeps the re-source from appending again: the substring
-# guard below only recognises the form we emit (";pwdtintii_apply"), so a framework
-# that reformats PROMPT_COMMAND — e.g. spacing out the ";" separators — would slip
-# past it and double-register pwdtintii_apply, emitting OSC 11 twice per prompt.
-# zsh gets this for free from add-zsh-hook's exact-membership dedupe.
-if [[ -z "${_PWDTINTII_HOOK_INSTALLED:-}" ]]; then
-  if [[ ";${PROMPT_COMMAND:-};" != *";pwdtintii_apply;"* ]]; then
-    PROMPT_COMMAND="${PROMPT_COMMAND:+${PROMPT_COMMAND%;};}pwdtintii_apply"
+# The prompt hook. It preserves $? around the tint emit so the status the prompt
+# shows — a bash PROMPT that reads a captured $? (and zsh's %?, mirrored below) —
+# is the user's last command, not pwdtintii_apply's (which would always read 0).
+_pwdtintii_precmd() { local __pt_rc=$?; pwdtintii_apply; return "$__pt_rc"; }
+
+# Register it exactly once per shell. A self-reload re-sources this file, so a
+# one-shot flag keeps the re-source from appending again. PROMPT_COMMAND can be a
+# string or — since bash 5.1 — an array, so scan EVERY element for our hook: a
+# reformatted ";" separator (string) or a hook sitting in a non-[0] element (array)
+# used to slip past a [0]-only substring check and double-register, emitting OSC 11
+# twice per prompt. zsh gets this from add-zsh-hook's exact-membership dedupe.
+_pwdtintii_install_hook() {
+  local hook=_pwdtintii_precmd e
+  if [[ "$(declare -p PROMPT_COMMAND 2>/dev/null)" == "declare -a"* ]]; then
+    for e in "${PROMPT_COMMAND[@]}"; do [[ "$e" == *"$hook"* ]] && return 0; done
+    PROMPT_COMMAND+=( "$hook" )
+  else
+    [[ ";${PROMPT_COMMAND:-};" == *";${hook};"* ]] && return 0
+    PROMPT_COMMAND="${PROMPT_COMMAND:+${PROMPT_COMMAND%;};}${hook}"
   fi
+}
+if [[ -z "${_PWDTINTII_HOOK_INSTALLED:-}" ]]; then
+  _pwdtintii_install_hook
   _PWDTINTII_HOOK_INSTALLED=1
 fi
 trap _pwdtintii_release EXIT

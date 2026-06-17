@@ -604,7 +604,9 @@ _pwdtintii_help() {
 }
 
 # ── Hooks ────────────────────────────────────────────────────────────────────
-_pwdtintii_precmd() { pwdtintii_apply }
+# Preserve $? around the tint emit so %? (and any prompt that reads $?) shows the
+# user's last command status, not pwdtintii_apply's (which would always read 0).
+_pwdtintii_precmd() { local __pt_rc=$?; pwdtintii_apply; return $__pt_rc }
 
 # ── Boot ─────────────────────────────────────────────────────────────────────
 _pwdtintii_load_palette
