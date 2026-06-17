@@ -30,7 +30,14 @@
 set -euo pipefail
 
 SELF_DIR="$(cd "$(dirname "$0")" && pwd)"
-PALETTE="${PWDTINTII_PALETTE:-${SELF_DIR}/../palettes/default.tsv}"
+# Canonical palettes dir — collapse the bin/.. now. The plugin compares the
+# palette path by STRING (the picker's dark/light group check, _pwdtintii_set_palette),
+# against its own canonical palettes/ dir; an un-normalized ${SELF_DIR}/../palettes
+# leaking out of cmd_palette_for into $sd/pal would commit a bin/../palettes/… form
+# into PWDTINTII_PALETTE on ctrl-t, and the next picker open would then see it differ
+# from both bundled paths and silently drop the toggle.
+PALETTES_DIR="$(cd "${SELF_DIR}/.." && pwd)/palettes"
+PALETTE="${PWDTINTII_PALETTE:-${PALETTES_DIR}/default.tsv}"
 
 # Help works without a palette (it's what you read when things are misconfigured):
 # print the header doc block (lines 2..first blank) and stop before the code.
@@ -402,8 +409,8 @@ cmd_palette() {
 # goes through here, so the two bundled locations live in one place.
 cmd_palette_for() {
   case "${1:-}" in
-    dark)  printf '%s\n' "${SELF_DIR}/../palettes/default.tsv" ;;
-    light) printf '%s\n' "${SELF_DIR}/../palettes/light.tsv" ;;
+    dark)  printf '%s\n' "${PALETTES_DIR}/default.tsv" ;;
+    light) printf '%s\n' "${PALETTES_DIR}/light.tsv" ;;
     *) echo "pwdtintii: palette-for needs 'dark' or 'light'" >&2; return 1 ;;
   esac
 }
