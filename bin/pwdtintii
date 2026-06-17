@@ -131,6 +131,32 @@ _pt_band_heights() {
   done
 }
 
+# Render n color bands into the preview pane: fill each band solid in its shade
+# and, at the band's middle row, call the caller-named mid-row hook ($3) with the
+# band index + that shade's r,g,b + the pane width. Shared by preview-family and
+# preview-contrast so the band loop — and the subtle one-blank-between-bands gap
+# guard — live in one place; the two previews differ only in their mid row.
+# Reads _PT_BANDS / _PT_GAP from a preceding _pt_band_heights, and the caller's
+# `hexes` array (dynamic scope) for each band's fill color. The hook likewise
+# reads the caller's per-shade arrays by index.
+_pt_render_bands() {
+  local n="$1" w="$2" midfn="$3"
+  local idx row band_h mid r g b
+  for (( idx = 0; idx < n; idx++ )); do
+    read -r r g b < <(hex_to_rgb "${hexes[idx]}")
+    band_h="${_PT_BANDS[idx]}"
+    mid=$(( band_h / 2 ))
+    for (( row = 0; row < band_h; row++ )); do
+      if (( row == mid )); then
+        "$midfn" "$idx" "$r" "$g" "$b" "$w"
+      else
+        _pt_fill_row "$r" "$g" "$b" "$w"
+      fi
+    done
+    if (( _PT_GAP == 1 && idx < n - 1 )); then echo; fi
+  done
+}
+
 # The active palette's theme name for the preview banner: dark/light for the
 # bundled palettes, empty for a custom one (nothing dark/light to label).
 _pt_theme_label() {
@@ -156,6 +182,13 @@ _pt_preview_banner() {
   local lead="$mode"
   [[ -n "$theme" ]] && lead="${mode} · ${theme}"
   printf '\e[1;38;2;%s;%s;%sm%s\e[22m · %s\e[0m\n\n' "$r" "$g" "$b" "$lead" "$fam"
+}
+
+# Mid-row hook for preview-family: the shade label + sample ghost text, in the
+# band's luminance-tracked tones. Reads the caller's `hexes` array by index.
+_pt_midrow_swatch() {
+  local idx="$1" r="$2" g="$3" b="$4" w="$5"
+  _pt_text_row "$r" "$g" "$b" "$w" "shade${idx}" "${hexes[idx]}"
 }
 
 cmd_preview_family() {
@@ -190,23 +223,7 @@ cmd_preview_family() {
   _pt_preview_banner swatch "$fam"
 
   _pt_band_heights "$n" "$H"
-  local idx
-  for (( idx = 0; idx < n; idx++ )); do
-    local hex="${hexes[idx]}"
-    local r g b
-    read -r r g b < <(hex_to_rgb "$hex")
-    local band_h="${_PT_BANDS[idx]}"
-    local mid=$(( band_h / 2 ))
-    local row
-    for (( row = 0; row < band_h; row++ )); do
-      if (( row == mid )); then
-        _pt_text_row "$r" "$g" "$b" "$W" "shade${idx}" "$hex"
-      else
-        _pt_fill_row "$r" "$g" "$b" "$W"
-      fi
-    done
-    if (( _PT_GAP == 1 && idx < n - 1 )); then echo; fi
-  done
+  _pt_render_bands "$n" "$W" _pt_midrow_swatch
 }
 
 # ── Contrast preview: colored swatches annotated with readability scores ──────
@@ -249,6 +266,23 @@ _pt_contrast_row() {
 # the colored viewer and the text dump can never disagree. Theme is auto (the
 # palette's mean luminance) — the bundled dark/light palettes classify the way
 # the viewer's dark/light cycle intends.
+# Mid-row hook for preview-contrast: the shade label + its WCAG/APCA scores, in
+# the best-readable foreground the engine recommends. Reads the caller's parsed
+# per-shade arrays (idxs/hexes/wcags/lcs/bfgs) by index. Badges + the best-fg rgb
+# are derived once per band (only the mid row runs this), no per-row fork.
+_pt_midrow_contrast() {
+  local idx="$1" r="$2" g="$3" b="$4" w="$5"
+  local fgr fgg fgb
+  read -r fgr fgg fgb < <(hex_to_rgb "${bfgs[idx]}")
+  local wcag_centi="${wcags[idx]/./}" lc_mag="${lcs[idx]#[-+]}"
+  local lc_deci="${lc_mag/./}"
+  local wb ab
+  wb=$(_pt_wcag_badge "$wcag_centi")
+  ab=$(_pt_apca_badge "$lc_deci")
+  _pt_contrast_row "$r" "$g" "$b" "$w" "shade${idxs[idx]}" "${hexes[idx]}" \
+    "${wcags[idx]}" "$wb" "${lcs[idx]}" "$ab" "$fgr" "$fgg" "$fgb"
+}
+
 cmd_preview_contrast() {
   local fam="$1"
   command -v python3 >/dev/null 2>&1 || { echo "pwdtintii: pt contrast needs python3"; return 1; }
@@ -274,30 +308,7 @@ cmd_preview_contrast() {
 
   _pt_preview_banner contrast "$fam"
   _pt_band_heights "$n" "$H"
-
-  local k
-  for (( k = 0; k < n; k++ )); do
-    local r g b fgr fgg fgb
-    read -r r g b < <(hex_to_rgb "${hexes[k]}")
-    read -r fgr fgg fgb < <(hex_to_rgb "${bfgs[k]}")
-    local wcag_centi="${wcags[k]/./}" lc_mag="${lcs[k]#[-+]}"
-    local lc_deci="${lc_mag/./}"
-    local wb ab
-    wb=$(_pt_wcag_badge "$wcag_centi")
-    ab=$(_pt_apca_badge "$lc_deci")
-    local band_h="${_PT_BANDS[k]}"
-    local mid=$(( band_h / 2 ))
-    local row
-    for (( row = 0; row < band_h; row++ )); do
-      if (( row == mid )); then
-        _pt_contrast_row "$r" "$g" "$b" "$W" "shade${idxs[k]}" "${hexes[k]}" \
-          "${wcags[k]}" "$wb" "${lcs[k]}" "$ab" "$fgr" "$fgg" "$fgb"
-      else
-        _pt_fill_row "$r" "$g" "$b" "$W"
-      fi
-    done
-    if (( _PT_GAP == 1 && k < n - 1 )); then echo; fi
-  done
+  _pt_render_bands "$n" "$W" _pt_midrow_contrast
 }
 
 # Darken a #rrggbb hex toward black by PCT percent (50 = half brightness).
