@@ -235,13 +235,14 @@ teardown() { teardown_sandbox; }
 @test "pick-toggle flips the group and reflows the picker frame in place" {
   # ctrl-t swaps the picker's dark<->light group without restarting fzf: it flips
   # the group in the state dir and emits reload + change-preview/header/prompt +
-  # refresh-preview for the new palette. The focused family (arg 2) drives an OSC
-  # tint to /dev/tty as a side effect (suppressed off-tty), so it is not asserted
-  # here — only that passing it still yields a well-formed action chain.
+  # refresh-preview for the new palette. It no longer emits the OSC tint itself —
+  # the ctrl-t bind chains a coordinated execute-silent(emit-family) after this
+  # transform (a raw write here raced fzf's renderer and was dropped), so all we
+  # assert is the well-formed action chain and the flipped group + recorded palette.
   local sd="$TEST_HOME/pstate"; mkdir -p "$sd"
   printf 'dark\n' > "$sd/grp"
   printf '%s\n' "$REPO_ROOT/palettes/default.tsv" > "$sd/pal"
-  run "$CLI" pick-toggle "$sd" blue
+  run "$CLI" pick-toggle "$sd"
   [ "$status" -eq 0 ]
   [[ "$output" == *"reload("* ]]
   [[ "$output" == *"list-menu"* ]]
@@ -251,6 +252,7 @@ teardown() { teardown_sandbox; }
   [[ "$output" == *"+refresh-preview"* ]]
   [[ "$output" == *"light.tsv"* ]]          # toggled dark -> light
   [ "$(cat "$sd/grp")" = "light" ]          # group flipped in the state dir
+  [ "$(cat "$sd/pal")" = "$REPO_ROOT/palettes/light.tsv" ]   # new palette recorded for the execute-silent emit
 }
 
 @test "view exits cleanly and removes its tempdir (fzf stubbed)" {
@@ -275,8 +277,10 @@ teardown() { teardown_sandbox; }
   # reload (the --ansi list colors reflow dark<->light), change-header (the
   # header's own ANSI color), change-preview + refresh-preview (swap the pane and
   # run it now — not after the next arrow key). State 1 here is the light palette.
-  # The backdrop OSC goes to /dev/tty as a side effect, not stdout, so it is not
-  # asserted here. Also advances + wraps the index.
+  # The backdrop flip is no longer written here: it records the new palette in
+  # $sd/pal and the ctrl-t bind chains a coordinated execute-silent(emit-backdrop
+  # $sd/pal) after this transform (a raw OSC write here raced fzf's renderer). Also
+  # advances + wraps the index.
   local sd="$TEST_HOME/vstate"; mkdir -p "$sd"
   printf '0\n' > "$sd/idx"
   printf '%s\tpreview-family\n%s\tpreview-contrast\n' \
@@ -290,6 +294,7 @@ teardown() { teardown_sandbox; }
   [[ "$output" == *"+refresh-preview"* ]]
   [[ "$output" == *"light.tsv"* ]]
   [ "$(cat "$sd/idx")" -eq 1 ]
+  [ "$(cat "$sd/pal")" = "$REPO_ROOT/palettes/light.tsv" ]   # new palette recorded for the execute-silent backdrop emit
 }
 
 @test "view backdrop is a dark neutral for the dark palette, light for the light one" {
@@ -316,6 +321,20 @@ teardown() { teardown_sandbox; }
   # can only assert it doesn't crash under set -euo pipefail — the structural twin
   # of emit-family's no-op test.
   run env PWDTINTII_VIEW_FAMILY=blue PWDTINTII_VIEW_SHADE=2 "$CLI" emit-restore
+  [ "$status" -eq 0 ]
+}
+
+@test "emit-backdrop is a no-op without a palette arg" {
+  # The viewer's ctrl-t chains execute-silent(emit-backdrop "$(cat $sd/pal)"); an
+  # empty $sd/pal must short-circuit cleanly rather than emit a malformed OSC.
+  run "$CLI" emit-backdrop
+  [ "$status" -eq 0 ]
+}
+
+@test "emit-backdrop exits cleanly for a bundled palette" {
+  # Emits the palette's viewer backdrop to /dev/tty (suppressed off-tty), so like
+  # emit-restore we can only assert it survives set -euo pipefail.
+  run "$CLI" emit-backdrop "$REPO_ROOT/palettes/light.tsv"
   [ "$status" -eq 0 ]
 }
 
