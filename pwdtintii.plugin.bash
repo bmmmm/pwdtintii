@@ -19,7 +19,7 @@
 #   PWDTINTII_DIR_KEY_FN      — optional function name resolving $PWD → key
 
 if [[ -z "${BASH_VERSINFO[0]:-}" ]] || (( BASH_VERSINFO[0] < 4 )); then
-  echo "pwdtintii: requires bash 4+ (you have ${BASH_VERSION:-unknown})" >&2
+  printf '%s\n' "pwdtintii: requires bash 4+ (you have ${BASH_VERSION:-unknown})" >&2
   return 1 2>/dev/null || exit 1
 fi
 
@@ -77,7 +77,7 @@ if command -v shasum >/dev/null 2>&1; then
 elif command -v sha1sum >/dev/null 2>&1; then
   _PWDTINTII_HASHCMD=sha1sum
 else
-  echo "pwdtintii: needs 'shasum' or 'sha1sum' on PATH" >&2
+  printf '%s\n' "pwdtintii: needs 'shasum' or 'sha1sum' on PATH" >&2
   return 1 2>/dev/null || exit 1
 fi
 
@@ -92,7 +92,7 @@ _pwdtintii_load_palette() {
     for sh in "$s0" "$s1" "$s2" "$s3"; do
       [[ "$sh" =~ ^#?[0-9a-fA-F]{6}$ ]] || ok=0
     done
-    (( ok )) || { echo "pwdtintii: palette: skipping '$family' — needs 4 '#rrggbb' shades" >&2; continue; }
+    (( ok )) || { printf '%s\n' "pwdtintii: palette: skipping '$family' — needs 4 '#rrggbb' shades" >&2; continue; }
     _pwdtintii_shades[$family]="$s0 $s1 $s2 $s3"
     _pwdtintii_families+=("$family")
   done < "$PWDTINTII_PALETTE"
@@ -299,8 +299,8 @@ pwdtintii_pick() {
     fi
   fi
   if [[ -z "${_pwdtintii_shades[$family]:-}" ]]; then
-    echo "pwdtintii: unknown family: $family" >&2
-    echo "available: ${_pwdtintii_families[*]}" >&2
+    printf '%s\n' "pwdtintii: unknown family: $family" >&2
+    printf '%s\n' "available: ${_pwdtintii_families[*]}" >&2
     return 1
   fi
   _PWDTINTII_FORCED_FAMILY="$family"
@@ -422,7 +422,7 @@ _pwdtintii_pick_interactive() {
 # Numbered-menu fallback when fzf isn't available
 _pwdtintii_pick_menu() {
   local i=1 fam
-  echo "available families:"
+  printf '%s\n' "available families:"
   for fam in "${_pwdtintii_families[@]}"; do
     printf '  %2d) %s\n' "$i" "$fam"
     ((i++))
@@ -434,14 +434,14 @@ _pwdtintii_pick_menu() {
   if [[ "$choice" =~ ^[0-9]+$ ]]; then
     # 10# forces base-10 so a leading zero (08, 09) isn't read as octal.
     if (( 10#$choice < 1 || 10#$choice > ${#_pwdtintii_families[@]} )); then
-      echo "pwdtintii: out of range: $choice" >&2
+      printf '%s\n' "pwdtintii: out of range: $choice" >&2
       return 1
     fi
     fam="${_pwdtintii_families[$((10#$choice - 1))]}"
   else
     fam="$choice"
   fi
-  [[ -z "$fam" ]] && { echo "pwdtintii: invalid choice" >&2; return 1; }
+  [[ -z "$fam" ]] && { printf '%s\n' "pwdtintii: invalid choice" >&2; return 1; }
   pwdtintii_pick "$fam"
 }
 
@@ -449,11 +449,11 @@ _pwdtintii_pick_menu() {
 pwdtintii_list() {
   local key; key=$("$PWDTINTII_DIR_KEY_FN")
   local resolved; resolved=$(_pwdtintii_family_for "$key")
-  echo "current key:    $key"
-  echo "current family: ${_PWDTINTII_FAMILY:-$resolved}${_PWDTINTII_FORCED_FAMILY:+ (forced)}"
-  echo "current shade:  ${_PWDTINTII_SHADE_IDX:-?}"
-  echo
-  echo "families (${#_pwdtintii_families[@]}):"
+  printf '%s\n' "current key:    $key"
+  printf '%s\n' "current family: ${_PWDTINTII_FAMILY:-$resolved}${_PWDTINTII_FORCED_FAMILY:+ (forced)}"
+  printf '%s\n' "current shade:  ${_PWDTINTII_SHADE_IDX:-?}"
+  printf '\n'
+  printf '%s\n' "families (${#_pwdtintii_families[@]}):"
   local fam
   for fam in "${_pwdtintii_families[@]}"; do
     printf '  %-15s %s\n' "$fam" "${_pwdtintii_shades[$fam]}"
@@ -466,30 +466,30 @@ pwdtintii_reload() {
   _pwdtintii_load_overrides
   _PWDTINTII_FORCE_REAPPLY=1
   pwdtintii_apply
-  echo "pwdtintii: reloaded (${#_pwdtintii_families[@]} families)"
+  printf '%s\n' "pwdtintii: reloaded (${#_pwdtintii_families[@]} families)"
 }
 
 # ── Public: diagnose the setup ───────────────────────────────────────────────
 # The tool's main silent-failure mode is a terminal that ignores OSC 11. Surface
 # the moving parts, then probe OSC 11 support live when attached to a terminal.
 pwdtintii_doctor() {
-  echo "pwdtintii doctor"
-  echo "  hash command: $_PWDTINTII_HASHCMD"
+  printf '%s\n' "pwdtintii doctor"
+  printf '%s\n' "  hash command: $_PWDTINTII_HASHCMD"
   if command -v fzf >/dev/null 2>&1; then
-    echo "  fzf:          found (menus + live picker enabled)"
+    printf '%s\n' "  fzf:          found (menus + live picker enabled)"
   else
-    echo "  fzf:          missing (menus fall back to a printed list)"
+    printf '%s\n' "  fzf:          missing (menus fall back to a printed list)"
   fi
   if command -v python3 >/dev/null 2>&1; then
-    echo "  python3:      found (pt contrast enabled)"
+    printf '%s\n' "  python3:      found (pt contrast enabled)"
   else
-    echo "  python3:      missing (pt contrast unavailable)"
+    printf '%s\n' "  python3:      missing (pt contrast unavailable)"
   fi
-  echo "  palette:      $PWDTINTII_PALETTE (${#_pwdtintii_families[@]} families)"
-  echo "  state:        family=${_PWDTINTII_FAMILY:-auto} shade=${_PWDTINTII_SHADE_IDX:-?} disabled=${_PWDTINTII_DISABLED:-0}"
-  echo "  terminal:     TERM=${TERM:-?} COLORTERM=${COLORTERM:-?} TERM_PROGRAM=${TERM_PROGRAM:-?}"
+  printf '%s\n' "  palette:      $PWDTINTII_PALETTE (${#_pwdtintii_families[@]} families)"
+  printf '%s\n' "  state:        family=${_PWDTINTII_FAMILY:-auto} shade=${_PWDTINTII_SHADE_IDX:-?} disabled=${_PWDTINTII_DISABLED:-0}"
+  printf '%s\n' "  terminal:     TERM=${TERM:-?} COLORTERM=${COLORTERM:-?} TERM_PROGRAM=${TERM_PROGRAM:-?}"
   if [[ ! -t 1 ]]; then
-    echo "  osc 11:       skipped (output is not a terminal)"
+    printf '%s\n' "  osc 11:       skipped (output is not a terminal)"
     return 0
   fi
   # Query the current background (OSC 11 with '?'); a compliant terminal answers
@@ -500,9 +500,9 @@ pwdtintii_doctor() {
   read -rsn1 -t 0.3 reply < /dev/tty 2>/dev/null || true
   if [[ -n "$reply" ]]; then
     while read -rsn1 -t 0.05 _ < /dev/tty 2>/dev/null; do : ; done
-    echo "  osc 11:       terminal responded — supported"
+    printf '%s\n' "  osc 11:       terminal responded — supported"
   else
-    echo "  osc 11:       no response — terminal may not support OSC 11 (tinting will be a no-op)"
+    printf '%s\n' "  osc 11:       no response — terminal may not support OSC 11 (tinting will be a no-op)"
   fi
 }
 
@@ -518,9 +518,9 @@ pwdtintii() {
   # the actions it dispatches resolve to the freshly defined functions.)
   if _pwdtintii_is_stale; then
     if _pwdtintii_resource; then
-      echo "pwdtintii: plugin changed on disk — reloaded this shell" >&2
+      printf '%s\n' "pwdtintii: plugin changed on disk — reloaded this shell" >&2
     else
-      echo "pwdtintii: plugin changed on disk but the new version won't parse — keeping the running one" >&2
+      printf '%s\n' "pwdtintii: plugin changed on disk but the new version won't parse — keeping the running one" >&2
     fi
   fi
   local sub="${1:-}"
@@ -545,8 +545,8 @@ pwdtintii() {
     contrast)        "${_pwdtintii_self}/scripts/contrast-check.sh" ;;
     help|-h|--help)  _pwdtintii_help ;;
     *)
-      echo "pwdtintii: unknown command: $sub" >&2
-      echo "try: pwdtintii help" >&2
+      printf '%s\n' "pwdtintii: unknown command: $sub" >&2
+      printf '%s\n' "try: pwdtintii help" >&2
       return 1 ;;
   esac
 }
@@ -601,22 +601,22 @@ _pwdtintii_pause() {
 
 # Printed cheat-sheet: the no-fzf fallback for `pt`, and `pt help`.
 _pwdtintii_help() {
-  echo "pwdtintii — directory-derived terminal tinting"
-  echo "  now: ${_PWDTINTII_FAMILY:-?} · shade ${_PWDTINTII_SHADE_IDX:-?}"
-  _pwdtintii_is_stale && echo "  (plugin changed on disk — re-source or open a new shell)"
-  echo
-  echo "  pt                 open the action menu (this list without fzf)"
-  echo "  pt pick [family]   pin a color family (picker; ctrl-t: dark/light)"
-  echo "  pt view            browse the palette (colored; ctrl-t cycles)"
-  echo "  pt list            families + current mapping"
-  echo "  pt auto            back to directory-derived auto (unpin)"
-  echo "  pt off             stop tinting + reset the terminal background"
-  echo "  pt reload          re-read the palette TSV"
-  echo "  pt contrast        WCAG + APCA contrast of all shades"
-  echo "  pt doctor          diagnose terminal OSC 11 / fzf / palette"
-  echo "  pt help            this overview"
-  echo
-  echo "  aliases: ptpick · ptlist · ptreload · ptview · ptcontrast"
+  printf '%s\n' "pwdtintii — directory-derived terminal tinting"
+  printf '%s\n' "  now: ${_PWDTINTII_FAMILY:-?} · shade ${_PWDTINTII_SHADE_IDX:-?}"
+  _pwdtintii_is_stale && printf '%s\n' "  (plugin changed on disk — re-source or open a new shell)"
+  printf '\n'
+  printf '%s\n' "  pt                 open the action menu (this list without fzf)"
+  printf '%s\n' "  pt pick [family]   pin a color family (picker; ctrl-t: dark/light)"
+  printf '%s\n' "  pt view            browse the palette (colored; ctrl-t cycles)"
+  printf '%s\n' "  pt list            families + current mapping"
+  printf '%s\n' "  pt auto            back to directory-derived auto (unpin)"
+  printf '%s\n' "  pt off             stop tinting + reset the terminal background"
+  printf '%s\n' "  pt reload          re-read the palette TSV"
+  printf '%s\n' "  pt contrast        WCAG + APCA contrast of all shades"
+  printf '%s\n' "  pt doctor          diagnose terminal OSC 11 / fzf / palette"
+  printf '%s\n' "  pt help            this overview"
+  printf '\n'
+  printf '%s\n' "  aliases: ptpick · ptlist · ptreload · ptview · ptcontrast"
 }
 
 # ── Hooks ────────────────────────────────────────────────────────────────────
@@ -624,7 +624,7 @@ _pwdtintii_help() {
 _pwdtintii_load_palette
 _pwdtintii_load_overrides
 if (( ${#_pwdtintii_families[@]} == 0 )); then
-  echo "pwdtintii: palette '$PWDTINTII_PALETTE' has no families — tinting disabled" >&2
+  printf '%s\n' "pwdtintii: palette '$PWDTINTII_PALETTE' has no families — tinting disabled" >&2
 fi
 
 # Register the prompt hook exactly once per shell. A self-reload re-sources this
