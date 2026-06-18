@@ -4,13 +4,14 @@ Entry point for picking up work. Read this first, then pick a section.
 
 ## Status
 
-0.3.0 released 2026-06-15 (`v0.3.0`); unreleased work sits on top of it — see
-the CHANGELOG `[Unreleased]` section (fish shell support, tmux per-pane tinting,
-the merged `pt view` browser, APCA scores in `pt contrast`, high-contrast fzf
-menus over the live tint). 0.3.0 itself added `pt off`, `pt doctor`, a
+0.4.0 is staged on `main` (CHANGELOG `[0.4.0]`); the `v0.4.0` tag is not pushed
+yet — it waits on a live spot-check in a real terminal (the smoke test below).
+0.4.0 adds fish shell support, tmux per-pane tinting, the merged `pt view`
+browser, APCA scores in `pt contrast`, and high-contrast fzf menus over the live
+tint — on top of 0.3.0 (released 2026-06-15: `pt off`, `pt doctor`, a
 light-terminal palette (`light.tsv`) + ctrl-t picker toggle, a self-reloading
 `pt`, a PWD-cached prompt hot-path, palette validation, macOS CI, and the public
-GitHub mirror. Covered by the bats suite (`grep -c '^@test' tests/*.bats` for
+GitHub mirror). Covered by the bats suite (`grep -c '^@test' tests/*.bats` for
 the live count). Still alpha. Dotfiles already source the plugin (`~/.zshrc`).
 
 ## Next session — start here
@@ -20,7 +21,7 @@ terminal background now flips together with the list/swatches (routed through
 fzf's coordinated `execute-silent`, not a raw `transform` write fzf dropped), and
 ENTER/ESC close flash-free (inline sub-100% fzf). `pt pick` is user-confirmed on
 a real terminal; `pt view` rides the same fix path. See the CHANGELOG
-`[Unreleased]` → Fixed for the full list (also: `$?` preservation, the
+`[0.4.0]` → Fixed for the full list (also: `$?` preservation, the
 palette-path normalization that kept the toggle alive across a commit, array
 `PROMPT_COMMAND`, newline-less palettes, zsh `nounset`).
 
