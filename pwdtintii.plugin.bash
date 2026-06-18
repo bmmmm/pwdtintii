@@ -86,10 +86,7 @@ _pwdtintii_load_palette() {
   _pwdtintii_shades=()
   _pwdtintii_families=()
   local family s0 s1 s2 s3 sh ok
-  # `|| [[ -n "$family" ]]` keeps the last row even when a hand-edited palette
-  # ends without a trailing newline — read returns non-zero there but still fills
-  # the fields, so without this the final family is silently dropped. The file is
-  # read raw (no grep/sed upstream to re-add the newline), so the guard is real.
+  # keep a newline-less last row (file read raw, no grep/sed to re-add the \n)
   while IFS=$'\t' read -r family s0 s1 s2 s3 || [[ -n "$family" ]]; do
     [[ -z "$family" || "$family" == "family" || "$family" == \#* ]] && continue
     ok=1
@@ -106,7 +103,8 @@ _pwdtintii_load_overrides() {
   _pwdtintii_overrides=()
   [[ -z "${PWDTINTII_OVERRIDES_FILE:-}" || ! -f "$PWDTINTII_OVERRIDES_FILE" ]] && return
   local proj family
-  while IFS=$'\t' read -r proj family || [[ -n "$proj" ]]; do   # keep a newline-less last row
+  # keep a newline-less last row (file read raw, no grep/sed to re-add the \n)
+  while IFS=$'\t' read -r proj family || [[ -n "$proj" ]]; do
     [[ -z "$proj" || "$proj" == \#* ]] && continue
     _pwdtintii_overrides[$proj]=$family
   done < "$PWDTINTII_OVERRIDES_FILE"
@@ -115,7 +113,7 @@ _pwdtintii_load_overrides() {
 # Switch the active palette for this shell (the picker's dark/light toggle
 # commits through here). Reloads families + overrides; does not re-emit.
 _pwdtintii_set_palette() {
-  [[ "$1" == "$PWDTINTII_PALETTE" ]] && return 0
+  [[ "$1" -ef "$PWDTINTII_PALETTE" ]] && return 0
   PWDTINTII_PALETTE="$1"
   _pwdtintii_load_palette
   _pwdtintii_load_overrides
@@ -296,7 +294,7 @@ pwdtintii_pick() {
       palfile="${picked%%$'\t'*}"
       family="${picked#*$'\t'}"
       # Committing a pick from the other group switches this shell's palette.
-      [[ -n "$palfile" && "$palfile" != "$PWDTINTII_PALETTE" ]] && _pwdtintii_set_palette "$palfile"
+      [[ -n "$palfile" && ! "$palfile" -ef "$PWDTINTII_PALETTE" ]] && _pwdtintii_set_palette "$palfile"
     else
       _pwdtintii_pick_menu
       return $?
@@ -348,8 +346,10 @@ _pwdtintii_pick_interactive() {
   # Offer the toggle only with both bundled palettes in play; a custom
   # PWDTINTII_PALETTE gets a plain single-group picker (no ctrl-t).
   local group=dark toggle=1
-  [[ "$PWDTINTII_PALETTE" == "$light" ]] && group=light
-  if [[ ! -f "$light" || ( "$PWDTINTII_PALETTE" != "$dark" && "$PWDTINTII_PALETTE" != "$light" ) ]]; then
+  # Compare by inode (-ef) not string: a committed PWDTINTII_PALETTE can carry a
+  # bin/.. or symlinked form that string-mismatches the bundled paths. CLI does too.
+  [[ "$PWDTINTII_PALETTE" -ef "$light" ]] && group=light
+  if [[ ! -f "$light" || ( ! "$PWDTINTII_PALETTE" -ef "$dark" && ! "$PWDTINTII_PALETTE" -ef "$light" ) ]]; then
     toggle=0
   fi
 
@@ -645,7 +645,6 @@ _pwdtintii_precmd() { local __pt_rc=$?; pwdtintii_apply; return "$__pt_rc"; }
 # reformatted ";" separator (string) or a hook sitting in a non-[0] element (array)
 # used to slip past a [0]-only substring check and double-register, emitting OSC 11
 # twice per prompt. zsh gets this from add-zsh-hook's exact-membership dedupe.
-# shellcheck disable=SC2178  # PROMPT_COMMAND is deliberately string-OR-array (bash 5.1+); each branch handles one form
 _pwdtintii_install_hook() {
   local hook=_pwdtintii_precmd e
   if [[ "$(declare -p PROMPT_COMMAND 2>/dev/null)" == "declare -a"* ]]; then
@@ -653,6 +652,7 @@ _pwdtintii_install_hook() {
     PROMPT_COMMAND+=( "$hook" )
   else
     [[ ";${PROMPT_COMMAND:-};" == *";${hook};"* ]] && return 0
+    # shellcheck disable=SC2178  # this branch deliberately assigns the string form (bash <5.1)
     PROMPT_COMMAND="${PROMPT_COMMAND:+${PROMPT_COMMAND%;};}${hook}"
   fi
 }

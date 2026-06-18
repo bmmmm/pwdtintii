@@ -370,6 +370,20 @@ teardown() { teardown_sandbox; }
   [[ "$output" == *"shades-differ"* ]]
 }
 
+# Regression guard for the inode comparison: the picker can commit PWDTINTII_PALETTE
+# in a bin/.. form, so set_palette must treat an alternate path to the SAME bundled
+# file as unchanged (-ef), not switch to the odd string. A string `==` would switch.
+@test "set_palette compares by inode (-ef): an alternate path to the same file is a no-op" {
+  run bash_eval "$TEST_HOME" "$TEST_HOME" '
+    orig="$PWDTINTII_PALETTE"
+    weird="${orig%/*}/./${orig##*/}"   # /./-inserted: same file, different string
+    _pwdtintii_set_palette "$weird"
+    [[ "$PWDTINTII_PALETTE" == "$orig" ]] && echo unchanged || echo "switched:$PWDTINTII_PALETTE"
+  '
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"unchanged"* ]]
+}
+
 @test "committing a light-group pick pins the family with light shades" {
   # Call pwdtintii_pick directly (not in $()) so its palette/family state
   # persists; `run` captures the OSC it emits to stdout either way.
