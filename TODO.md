@@ -24,11 +24,17 @@ a real terminal; `pt view` rides the same fix path. See the CHANGELOG
 palette-path normalization that kept the toggle alive across a commit, array
 `PROMPT_COMMAND`, newline-less palettes, zsh `nounset`).
 
+The `pt` hub menu also sizes itself to the terminal width now (a0910bb): the list
+pane fits its widest action row (no more `··`-ellipsized glosses) and the
+description preview reflows to `FZF_PREVIEW_COLUMNS` (no `↳` hard-wraps); on a
+terminal too narrow for a side-by-side split the preview stacks below the list.
+User-confirmed on a real terminal.
+
 Remaining live spot-check (the command sandbox has no tty for OSC 11 / fzf): a
 fresh-terminal pass of the release checklist below — the picker ctrl-t flip,
 light-group preview legibility, and a clean flash-free exit.
 
-The bats suite is green on a real shell (115 tests). Under the command sandbox
+The bats suite is green on a real shell (118 tests). Under the command sandbox
 the `zsh pick_shade skips a live PID` test reads red because `kill -0` is blocked
 there — not a real failure; run the suite on a real shell to confirm.
 
