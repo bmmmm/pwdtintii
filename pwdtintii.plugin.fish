@@ -592,11 +592,12 @@ function pwdtintii
         case contrast
             "$_pwdtintii_self/scripts/contrast-check.sh"
         case version
-            set -l _v
+            set -l _v "(version unknown)"
             if test -r "$_pwdtintii_self/VERSION"
-                set _v (string trim (cat "$_pwdtintii_self/VERSION"))
-            else
-                set _v "(version unknown)"
+                # First whitespace-delimited token of the file, matching the
+                # bash/zsh `${_v%%[[:space:]]*}` so all three shells agree even
+                # on a malformed multi-line VERSION.
+                set _v (string match -r '\S+' < "$_pwdtintii_self/VERSION" | head -n1)
             end
             printf '%s\n' "pwdtintii $_v"
         case help -h --help

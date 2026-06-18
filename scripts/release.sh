@@ -29,14 +29,11 @@ usage() {
   exit 1
 }
 
-# Temp files registered here; _cleanup removes them all.
+# Temp files are registered into _TMPFILES at each call site, not inside
+# _make_tmp: a `+=` there would run in the `$(_make_tmp)` command-substitution
+# subshell and never reach this (parent) array, leaving _cleanup a no-op.
 _TMPFILES=()
-_make_tmp() {
-  local f
-  f="$(mktemp "${TMPDIR:-/tmp}/release.XXXXXXXX")"
-  _TMPFILES+=("$f")
-  printf '%s' "$f"
-}
+_make_tmp() { mktemp "${TMPDIR:-/tmp}/release.XXXXXXXX"; }
 
 _cleanup() {
   local f
@@ -131,7 +128,7 @@ TODAY="$(date +%F)"
 # Replace the FIRST "## [Unreleased]" line with "## [X.Y.Z] — YYYY-MM-DD".
 # awk writes to a temp file, then mv replaces the original (atomic-ish).
 
-TMP_CHANGELOG="$(_make_tmp)"
+TMP_CHANGELOG="$(_make_tmp)"; _TMPFILES+=("$TMP_CHANGELOG")
 
 awk -v ver="$VERSION" -v today="$TODAY" -v emdash="$EM_DASH" '
   /^## \[Unreleased\]/ {
@@ -151,7 +148,7 @@ fi
 # ── edit README.md ────────────────────────────────────────────────────────────
 # Rewrite the version token in the "Status: X.Y.Z · ..." line.
 
-TMP_README="$(_make_tmp)"
+TMP_README="$(_make_tmp)"; _TMPFILES+=("$TMP_README")
 
 awk -v ver="$VERSION" '
   /^Status: [0-9]+\.[0-9]+\.[0-9]+/ {
@@ -166,14 +163,14 @@ fi
 
 # ── VERSION file ──────────────────────────────────────────────────────────────
 
-TMP_VERSION="$(_make_tmp)"
+TMP_VERSION="$(_make_tmp)"; _TMPFILES+=("$TMP_VERSION")
 printf '%s\n' "$VERSION" > "$TMP_VERSION"
 
 # ── preflight: verbatim ci.yml awk on the edited CHANGELOG ───────────────────
 # This is the EXACT awk from .github/workflows/ci.yml's "Extract changelog" step.
 # If it would produce an empty file the CI release job would exit 1 — catch it here.
 
-TMP_NOTES="$(_make_tmp)"
+TMP_NOTES="$(_make_tmp)"; _TMPFILES+=("$TMP_NOTES")
 
 awk -v ver="$VERSION" '
   /^## \[/ {
