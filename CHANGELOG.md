@@ -39,9 +39,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   default background: fzf renders inline (sub-100% height), so its exit never
   repaints the whole frame.
 - After a `ctrl-t` toggle to the other group, committing a pick no longer
-  disables the `ctrl-t` toggle on the next `pt pick`. The bundled-palette path
-  the picker compares by string is normalized, so a commit can't leave
-  `PWDTINTII_PALETTE` in a `bin/..` form that mismatched both bundled paths.
+  disables the `ctrl-t` toggle on the next `pt pick`. The plugin compares palette
+  paths by inode (`-ef`, matching the CLI), so a committed `PWDTINTII_PALETTE` in
+  a `bin/..` or symlinked form is still recognized as the bundled palette.
 - The prompt hook preserves `$?`, so a prompt that shows the last command's exit
   status (zsh `%?`, or a bash prompt reading a captured `$?`) is no longer reset
   to success on every command by the background emit.
