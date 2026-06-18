@@ -24,6 +24,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - The `pt pick` `ctrl-t` dark/light toggle is flicker-free: it reloads the list,
   preview, and header in place instead of restarting fzf (which redrew the whole
   screen).
+- The `pt` hub menu adapts to the terminal width: the list pane is sized to its
+  widest action row so the glosses are no longer ellipsized, and the description
+  preview reflows to fill its pane instead of being hard-wrapped (the `↳`
+  markers). On a terminal too narrow to fit both side by side, the preview stacks
+  below the list so each keeps the full width.
 
 ### Removed
 - `scripts/preview.sh` — the static palette dump is folded into `pt view`'s

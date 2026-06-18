@@ -169,30 +169,41 @@ teardown() { teardown_sandbox; }
 }
 
 @test "describe-action renders a known action" {
-  run "$CLI" describe-action pick
+  run env FZF_PREVIEW_COLUMNS=80 "$CLI" describe-action pick
   [ "$status" -eq 0 ]
   [[ "$output" == *"pin a color family"* ]]
   [[ "$output" == *"ptpick"* ]]
 }
 
 @test "describe-action is graceful on an unknown action" {
-  run "$CLI" describe-action zzz
+  run env FZF_PREVIEW_COLUMNS=80 "$CLI" describe-action zzz
   [ "$status" -eq 0 ]
   [[ "$output" == *"no description"* ]]
 }
 
 @test "describe-action renders the off action" {
-  run "$CLI" describe-action off
+  run env FZF_PREVIEW_COLUMNS=80 "$CLI" describe-action off
   [ "$status" -eq 0 ]
   [[ "$output" == *"stop tinting"* ]]
   [[ "$output" == *"OSC 111"* ]]
 }
 
 @test "describe-action renders the view action" {
-  run "$CLI" describe-action view
+  run env FZF_PREVIEW_COLUMNS=80 "$CLI" describe-action view
   [ "$status" -eq 0 ]
   [[ "$output" == *"browse the palette"* ]]
   [[ "$output" == *"ptview"* ]]
+}
+
+@test "describe-action reflows to FZF_PREVIEW_COLUMNS (no line overflows the pane)" {
+  run env FZF_PREVIEW_COLUMNS=30 "$CLI" describe-action view
+  [ "$status" -eq 0 ]
+  # Every emitted line fits the pane, so fzf never hard-wraps it (the ↳ marker).
+  # wrap_w = FZF_PREVIEW_COLUMNS - 1; byte length is an upper bound on the display
+  # width, so a byte-length cap proves the display fits too.
+  local widest; widest=$(printf '%s\n' "$output" | awk '{ if (length > m) m = length } END { print m + 0 }')
+  [ "$widest" -le 29 ]
+  [[ "$output" == *"browse the palette"* ]]
 }
 
 # ── menu chrome: list-menu (--ansi list) + fzf-theme (--color) + pick-header ──
