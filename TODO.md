@@ -34,7 +34,7 @@ Remaining live spot-check (the command sandbox has no tty for OSC 11 / fzf): a
 fresh-terminal pass of the release checklist below — the picker ctrl-t flip,
 light-group preview legibility, and a clean flash-free exit.
 
-The bats suite is green on a real shell (138 tests). Under the command sandbox
+The bats suite is green on a real shell (143 tests). Under the command sandbox
 the `zsh pick_shade skips a live PID` test reads red because `kill -0` is blocked
 there — not a real failure; run the suite on a real shell to confirm.
 
@@ -79,7 +79,7 @@ there — not a real failure; run the suite on a real shell to confirm.
 ## Open work (medium)
 
 - [x] fish shell support — `pwdtintii.plugin.fish` (fish 3.5+), full native port;
-      byte-identical OSC-11 + shared PID registry; `tests/fish.bats` (17 tests)
+      byte-identical OSC-11 + shared PID registry; `tests/fish.bats` (19 tests)
       comparing fish vs bash; `examples/aliases.fish`; fzf commands force
       `SHELL=/bin/sh`. ← erledigt 2026-06-18
 - [x] tmux integration — per-pane background via `tmux select-pane -P "bg=#..."`;
@@ -141,7 +141,7 @@ pwdtintii/
 │   ├── plugin.bats         # bash plugin behaviour
 │   ├── cli.bats            # bin/pwdtintii subcommands
 │   ├── palette.bats        # light.tsv parity + contrast-check
-│   ├── fish.bats           # fish vs bash output parity (17 tests)
+│   ├── fish.bats           # fish vs bash output parity (19 tests)
 │   └── run.sh
 ├── .github/workflows/
 │   └── ci.yml              # shellcheck + zsh -n + bats
