@@ -80,9 +80,12 @@ _pt_valid_hex() {
 # inherits $TMUX, like the plugin. Best-effort either way — a non-configured
 # /dev/tty (no controlling terminal) must not abort the picker under set -e, so
 # the group redirect swallows the failed redirect's message too (a trailing
-# 2>/dev/null alone would not). Callers validate the hex before emitting.
+# 2>/dev/null alone would not). Callers validate the hex before emitting; we
+# normalize a bare rrggbb to #rrggbb here, matching the plugin's _pwdtintii_emit
+# (tmux rejects a `bg=` without the leading #, silently under the redirect).
 _pt_emit_bg() {
   local hex="$1"
+  [[ "$hex" == \#* ]] || hex="#$hex"
   if [[ -n "${TMUX:-}" ]]; then
     tmux select-pane -P "bg=$hex" 2>/dev/null || true
   else
