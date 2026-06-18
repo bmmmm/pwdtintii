@@ -14,6 +14,12 @@ test suite (`select-pane -P`, not yet eyeballed in a real tmux). Covered by the
 bats suite (`grep -c '^@test' tests/*.bats` for the live count). Still alpha.
 Dotfiles already source the plugin (`~/.zshrc`).
 
+Unreleased since 0.4.0 (see CHANGELOG `[Unreleased]`): `pt version` backed by a
+single-source `VERSION` file, `scripts/release.sh` (flips the CHANGELOG header,
+syncs the version strings, runs the CI release-awk as a preflight, then commits +
+tags — never pushes), and the fzf live-preview tint made per-pane under tmux. The
+tmux live-preview fix rides mock-tmux tests but still needs a real-tmux eyeball.
+
 ## Next session — start here
 
 The `ctrl-t` live-tint saga is resolved: in both `pt pick` and `pt view` the
@@ -33,7 +39,9 @@ User-confirmed on a real terminal.
 
 Remaining live spot-check (the command sandbox has no tty for OSC 11 / fzf): a
 fresh-terminal pass of the release checklist below — the picker ctrl-t flip,
-light-group preview legibility, and a clean flash-free exit.
+light-group preview legibility, and a clean flash-free exit — plus, inside tmux,
+that `pt pick` / `pt view` tint only the focused pane while open (the per-pane
+live-preview fix; mock-tested, not yet eyeballed in a real tmux).
 
 The bats suite is green on a real shell and under the command sandbox alike (use
 `grep -c '^@test' tests/*.bats` for the live count). The `zsh pick_shade skips a
@@ -88,8 +96,9 @@ into a mismatch. `kill -0` itself works fine. Fixed by `unsetopt bgnice` in
       comparing fish vs bash; `examples/aliases.fish`; fzf commands force
       `SHELL=/bin/sh`. ← erledigt 2026-06-18
 - [x] tmux integration — per-pane background via `tmux select-pane -P "bg=#..."`;
-      `pt off` resets to `bg=default`; fzf live-preview still uses OSC 11 (snaps
-      back on picker close). ← erledigt 2026-06-18
+      `pt off` resets to `bg=default`. The fzf live-preview is now per-pane too
+      (the OSC-11-global limitation is fixed in the unreleased work above). ←
+      erledigt 2026-06-18
 - [x] Light-theme palette variant — `palettes/light.tsv`, generated from
       `default.tsv` by `scripts/gen-light-palette.py` (same families/order, pale
       WCAG-readable shades). contrast-check + preview are now theme-aware, and
