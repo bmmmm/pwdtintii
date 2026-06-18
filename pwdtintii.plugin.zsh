@@ -256,7 +256,10 @@ pwdtintii_apply() {
   fi
 
   local shades=(${=_pwdtintii_shades[$family]:-})
-  _pwdtintii_emit "${shades[$(( shade_idx + 1 ))]}"
+  # `:-` on the subscript too: an empty `shades` (family dropped from the palette
+  # while still pinned/forced) is an out-of-range read that aborts under nounset.
+  # The bash twin guards the same emit; this keeps the precmd hook from crashing.
+  _pwdtintii_emit "${shades[$(( shade_idx + 1 ))]:-}"
 }
 
 # ── Public: pin a family for this shell ──────────────────────────────────────
@@ -284,7 +287,7 @@ pwdtintii_pick() {
       return $?
     fi
   fi
-  if [[ -z "${_pwdtintii_shades[$family]}" ]]; then
+  if [[ -z "${_pwdtintii_shades[$family]:-}" ]]; then
     printf '%s\n' "pwdtintii: unknown family: $family" >&2
     printf '%s\n' "available: $_pwdtintii_families" >&2
     return 1
