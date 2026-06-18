@@ -725,52 +725,73 @@ cmd_actions() {
     contrast 'contrast' 'WCAG + APCA contrast of all shades'
 }
 
-# One action's help text, shown in the hub's fzf preview pane.
+# Word-wrap stdin to W columns, preserving blank lines (paragraph breaks) and
+# passing already-fitting lines through untouched — so a hand-spaced title or
+# footer keeps its layout while long body paragraphs reflow. Used by
+# describe-action so the hub preview fills its pane at any width instead of fzf
+# hard-wrapping our fixed lines (the ↳ continuation markers). Counts bytes, not
+# display cells, so a line with a multibyte —/· wraps a touch early — harmless
+# here (those sit in short title/footer lines that never reach the wrap point).
+_pt_wrap() {
+  awk -v W="$1" '
+    length($0) <= W { print; next }
+    {
+      line = ""
+      n = split($0, words, " ")
+      for (i = 1; i <= n; i++) {
+        if (words[i] == "") continue
+        if (line == "") line = words[i]
+        else if (length(line) + 1 + length(words[i]) <= W) line = line " " words[i]
+        else { print line; line = words[i] }
+      }
+      if (length(line)) print line
+    }
+  '
+}
+
+# One action's help text, shown in the hub's fzf preview pane. Each paragraph is
+# one logical line; _pt_wrap reflows it to the pane's real width (fzf exports
+# FZF_PREVIEW_COLUMNS), capped at a readable measure so wide panes don't stretch
+# the prose, floored so a sliver still wraps sanely.
 cmd_describe_action() {
-  case "${1:-}" in
-    pick)
-      printf 'pick — pin a color family\n\n'
-      printf 'Opens the fzf family picker. Arrow keys preview each\n'
-      printf 'family live as the terminal background (OSC 11);\n'
-      printf 'ENTER pins it for this shell, ESC cancels. ctrl-t\n'
-      printf 'toggles between the dark and light palette groups.\n\n'
-      printf 'Direct: pt pick <family>   ·   alias: ptpick\n' ;;
-    view)
-      printf 'view — browse the palette\n\n'
-      printf 'Opens an fzf browser over the families with a colored\n'
-      printf 'preview pane. ctrl-t cycles the pane through swatch and\n'
-      printf 'contrast, dark and light; ESC closes. Read-only — it\n'
-      printf 'previews, it does not pin (use pick for that).\n\n'
-      printf 'Direct: pt view   ·   alias: ptview\n' ;;
-    list)
-      printf 'list — families + current mapping\n\n'
-      printf 'Shows the resolved key, family and shade for this\n'
-      printf 'shell, then every family with its four shades.\n\n'
-      printf 'Direct: pt list   ·   alias: ptlist\n' ;;
-    auto)
-      printf 'auto — back to directory-derived mode\n\n'
-      printf 'Clears a pinned family so the background follows the\n'
-      printf 'current directory hash again.\n\n'
-      printf 'Direct: pt auto   (same as pt pick --auto)\n' ;;
-    off)
-      printf 'off — stop tinting\n\n'
-      printf 'Resets the terminal background to its default (OSC 111)\n'
-      printf 'and stops re-tinting on every prompt. Re-enable with\n'
-      printf 'pt auto, pt pick, or pt reload.\n\n'
-      printf 'Direct: pt off\n' ;;
-    reload)
-      printf 'reload — re-read the palette\n\n'
-      printf 'Reloads the palette TSV (and overrides) from disk and\n'
-      printf 're-applies — run it after editing the palette.\n\n'
-      printf 'Direct: pt reload   ·   alias: ptreload\n' ;;
-    contrast)
-      printf 'contrast — WCAG + APCA contrast\n\n'
-      printf 'Scores each shade against the theme text in both WCAG\n'
-      printf 'ratios and APCA Lc, and flags the unreadable combos.\n\n'
-      printf 'Direct: pt contrast   ·   alias: ptcontrast\n' ;;
-    *)
-      printf '%s\n\n(no description)\n' "${1:-}" ;;
-  esac
+  local W="${FZF_PREVIEW_COLUMNS:-${COLUMNS:-50}}"
+  local wrap_w=$(( W - 1 ))
+  if (( wrap_w > 76 )); then wrap_w=76; fi
+  if (( wrap_w < 24 )); then wrap_w=24; fi
+  {
+    case "${1:-}" in
+      pick)
+        printf '%s\n\n' 'pick — pin a color family'
+        printf '%s\n\n' 'Opens the fzf family picker. Arrow keys preview each family live as the terminal background (OSC 11); ENTER pins it for this shell, ESC cancels. ctrl-t toggles between the dark and light palette groups.'
+        printf '%s\n' 'Direct: pt pick <family>   ·   alias: ptpick' ;;
+      view)
+        printf '%s\n\n' 'view — browse the palette'
+        printf '%s\n\n' 'Opens an fzf browser over the families with a colored preview pane. ctrl-t cycles the pane through swatch and contrast, dark and light; ESC closes. Read-only — it previews, it does not pin (use pick for that).'
+        printf '%s\n' 'Direct: pt view   ·   alias: ptview' ;;
+      list)
+        printf '%s\n\n' 'list — families + current mapping'
+        printf '%s\n\n' 'Shows the resolved key, family and shade for this shell, then every family with its four shades.'
+        printf '%s\n' 'Direct: pt list   ·   alias: ptlist' ;;
+      auto)
+        printf '%s\n\n' 'auto — back to directory-derived mode'
+        printf '%s\n\n' 'Clears a pinned family so the background follows the current directory hash again.'
+        printf '%s\n' 'Direct: pt auto   (same as pt pick --auto)' ;;
+      off)
+        printf '%s\n\n' 'off — stop tinting'
+        printf '%s\n\n' 'Resets the terminal background to its default (OSC 111) and stops re-tinting on every prompt. Re-enable with pt auto, pt pick, or pt reload.'
+        printf '%s\n' 'Direct: pt off' ;;
+      reload)
+        printf '%s\n\n' 'reload — re-read the palette'
+        printf '%s\n\n' 'Reloads the palette TSV (and overrides) from disk and re-applies — run it after editing the palette.'
+        printf '%s\n' 'Direct: pt reload   ·   alias: ptreload' ;;
+      contrast)
+        printf '%s\n\n' 'contrast — WCAG + APCA contrast'
+        printf '%s\n\n' 'Scores each shade against the theme text in both WCAG ratios and APCA Lc, and flags the unreadable combos.'
+        printf '%s\n' 'Direct: pt contrast   ·   alias: ptcontrast' ;;
+      *)
+        printf '%s\n\n%s\n' "${1:-}" '(no description)' ;;
+    esac
+  } | _pt_wrap "$wrap_w"
 }
 
 cmd=${1:-}

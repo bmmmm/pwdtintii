@@ -566,7 +566,26 @@ pwdtintii() {
 _pwdtintii_menu_pick() {
   local hdr="now: ${_PWDTINTII_FAMILY:-auto} ${_PWDTINTII_SHADE_IDX:-?} · ENTER run · ESC quit"
   _pwdtintii_is_stale && hdr="plugin changed — re-source · ${hdr}"
-  "${_pwdtintii_self}/bin/pwdtintii" actions \
+  # Size the split to the content, not a fixed ratio: give the list pane just
+  # enough columns for its widest "name + gloss" row (and the header) so fzf
+  # stops ellipsizing the gloss — the menu's whole point — and hand the rest to
+  # the preview, which reflows to whatever width it gets (describe-action reads
+  # FZF_PREVIEW_COLUMNS). Too narrow to fit both side by side: stack the preview
+  # below so the list keeps the full width.
+  local actions; actions=$("${_pwdtintii_self}/bin/pwdtintii" actions)
+  local cols=${COLUMNS:-$(tput cols 2>/dev/null || echo 80)}
+  # + 6 ≈ fzf's pointer/marker gutter plus a column of slack, so the row never
+  # quite touches the pane edge (which would bring the ellipsis back).
+  local list_w; list_w=$(printf '%s\n' "$actions" \
+    | awk -F'\t' '{ if (length($2) > m) m = length($2) } END { print m + 6 }')
+  if (( ${#hdr} + 6 > list_w )); then list_w=$(( ${#hdr} + 6 )); fi
+  local pvw
+  if (( cols - list_w >= 30 )); then
+    pvw="right:$(( cols - list_w )):wrap"
+  else
+    pvw='down:55%:wrap'
+  fi
+  printf '%s\n' "$actions" \
     | fzf \
         --prompt='pwdtintii > ' \
         --height=99% \
@@ -574,7 +593,7 @@ _pwdtintii_menu_pick() {
         --delimiter='\t' \
         --with-nth=2 \
         --preview="${_pwdtintii_self}/bin/pwdtintii describe-action {1}" \
-        --preview-window=right:55%:wrap \
+        --preview-window="$pvw" \
         --header="$hdr" \
     | cut -f1
 }
