@@ -35,9 +35,14 @@ Remaining live spot-check (the command sandbox has no tty for OSC 11 / fzf): a
 fresh-terminal pass of the release checklist below — the picker ctrl-t flip,
 light-group preview legibility, and a clean flash-free exit.
 
-The bats suite is green on a real shell (143 tests). Under the command sandbox
-the `zsh pick_shade skips a live PID` test reads red because `kill -0` is blocked
-there — not a real failure; run the suite on a real shell to confirm.
+The bats suite is green on a real shell and under the command sandbox alike (use
+`grep -c '^@test' tests/*.bats` for the live count). The `zsh pick_shade skips a
+live PID` test used to read red sandboxed, and the cause was not what it looked
+like: zsh nices background jobs by default (`BG_NICE`), the sandbox blocks the
+`nice()` syscall, and zsh's `nice(N) failed` warning leaked onto stderr — which
+bats `run` merges into the `$output` the test asserts on, turning a correct `1`
+into a mismatch. `kill -0` itself works fine. Fixed by `unsetopt bgnice` in
+`zsh_eval` (harness-wide), so the test now runs for real everywhere.
 
 ## Release smoke test (fresh Ghostty)
 
@@ -70,7 +75,6 @@ there — not a real failure; run the suite on a real shell to confirm.
 
 ## Open work (small)
 
-- [ ] Demo GIF for README (asciinema can't capture the color change → screen capture)
 - [x] GitHub public mirror — live at github.com/bmmmm/pwdtintii (one-way Forgejo→GitHub, 8h + on-commit) ← erledigt 2026-06-14
 - [x] GitHub CI: macOS matrix + release automation ← erledigt 2026-06-14
       - `macos-latest` in the test matrix (BSD awk/`stat -f`/`shasum`, brew bash 4+)
@@ -80,7 +84,7 @@ there — not a real failure; run the suite on a real shell to confirm.
 ## Open work (medium)
 
 - [x] fish shell support — `pwdtintii.plugin.fish` (fish 3.5+), full native port;
-      byte-identical OSC-11 + shared PID registry; `tests/fish.bats` (19 tests)
+      byte-identical OSC-11 + shared PID registry; `tests/fish.bats`
       comparing fish vs bash; `examples/aliases.fish`; fzf commands force
       `SHELL=/bin/sh`. ← erledigt 2026-06-18
 - [x] tmux integration — per-pane background via `tmux select-pane -P "bg=#..."`;
@@ -142,7 +146,7 @@ pwdtintii/
 │   ├── plugin.bats         # bash plugin behaviour
 │   ├── cli.bats            # bin/pwdtintii subcommands
 │   ├── palette.bats        # light.tsv parity + contrast-check
-│   ├── fish.bats           # fish vs bash output parity (19 tests)
+│   ├── fish.bats           # fish vs bash output parity
 │   └── run.sh
 ├── .github/workflows/
 │   └── ci.yml              # shellcheck + zsh -n + bats
