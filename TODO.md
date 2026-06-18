@@ -9,8 +9,10 @@ the merged `pt view` browser, APCA scores in `pt contrast`, and high-contrast fz
 menus over the live tint — on top of 0.3.0 (released 2026-06-15: `pt off`,
 `pt doctor`, a light-terminal palette (`light.tsv`) + ctrl-t picker toggle, a
 self-reloading `pt`, a PWD-cached prompt hot-path, palette validation, macOS CI,
-and the public GitHub mirror). fish was live-confirmed; tmux per-pane rides the
-test suite (`select-pane -P`, not yet eyeballed in a real tmux). Covered by the
+and the public GitHub mirror). fish was live-confirmed; tmux per-pane is
+functionally verified on real tmux 3.6b (`select-pane -P` sets the focused pane's
+bg to the computed tone, sibling panes independent — data-layer readback, the
+visual look not yet eyeballed). Covered by the
 bats suite (`grep -c '^@test' tests/*.bats` for the live count). Still alpha.
 Dotfiles already source the plugin (`~/.zshrc`).
 
@@ -18,7 +20,9 @@ Unreleased since 0.4.0 (see CHANGELOG `[Unreleased]`): `pt version` backed by a
 single-source `VERSION` file, `scripts/release.sh` (flips the CHANGELOG header,
 syncs the version strings, runs the CI release-awk as a preflight, then commits +
 tags — never pushes), and the fzf live-preview tint made per-pane under tmux. The
-tmux live-preview fix rides mock-tmux tests but still needs a real-tmux eyeball.
+tmux path is functionally verified on real tmux 3.6b (focused-pane tint ==
+computed tone, sibling panes independent — data-layer readback); only the visual
+eyeball is left.
 
 ## Next session — start here
 
@@ -40,8 +44,9 @@ User-confirmed on a real terminal.
 Remaining live spot-check (the command sandbox has no tty for OSC 11 / fzf): a
 fresh-terminal pass of the release checklist below — the picker ctrl-t flip,
 light-group preview legibility, and a clean flash-free exit — plus, inside tmux,
-that `pt pick` / `pt view` tint only the focused pane while open (the per-pane
-live-preview fix; mock-tested, not yet eyeballed in a real tmux).
+that `pt pick` / `pt view` *visually* tint only the focused pane while open (the
+per-pane logic is proven on real tmux 3.6b on the data layer — `select-pane -P`
+to the computed tone, sibling panes unaffected; only the visual look is left).
 
 The bats suite is green on a real shell and under the command sandbox alike (use
 `grep -c '^@test' tests/*.bats` for the live count). The `zsh pick_shade skips a
