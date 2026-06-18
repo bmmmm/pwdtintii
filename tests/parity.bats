@@ -180,6 +180,32 @@ teardown() { teardown_sandbox; }
   [[ "$output" == *"rc=42"* ]]
 }
 
+# The plugin advertises `setopt nounset` support (see the _pwdtintii_release
+# comment). bash guards every state read with `${VAR:-}`; the zsh side must too,
+# including the two associative-array subscript reads that abort under nounset:
+# the apply emit (`${shades[i]}` when a forced/pinned family vanished from the
+# palette) and the pick unknown-family check. Source under nounset (the real
+# user path — it's set in their .zshrc before the plugin loads) and drive both.
+@test "zsh survives setopt nounset on the absent-family paths (apply + pick)" {
+  run env PT_REPO="$REPO_ROOT" PT_PAL="$PWDTINTII_PALETTE" PT_SH="$PWDTINTII_SHADES_DIR" \
+    "$ZSH_BIN" -c '
+      setopt nounset
+      export PWDTINTII_PALETTE="$PT_PAL" PWDTINTII_SHADES_DIR="$PT_SH"
+      source "$PT_REPO/pwdtintii.plugin.zsh"
+      HOME=/testhome; PWD=/testhome/proj
+      _PWDTINTII_FORCED_FAMILY=zzz_absent_family   # forced family with no shades entry
+      pwdtintii_apply;                  print "apply-done"
+      pwdtintii_pick zzz_absent_family 2>/dev/null; print "pick-rc=$?"
+    '
+  # A nounset abort exits the whole zsh -c before its markers print, so the proof
+  # of "no abort" is status 0 AND both markers reaching the output. (apply itself
+  # returns the emit's rc — non-zero is the correct no-op on an empty shade, and
+  # the precmd wrapper masks it anyway — so we don't pin apply's rc here.)
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"apply-done"* ]]    # apply ran to the end, no parameter-not-set abort
+  [[ "$output" == *"pick-rc=1"* ]]     # clean "unknown family", not a nounset abort
+}
+
 # The `pt` self-reload parse-checks before sourcing in both plugins; plugin.bats
 # exercises the bash side, this guards the zsh side.
 @test "zsh self-reload refuses a syntactically broken plugin (keeps the running one)" {
