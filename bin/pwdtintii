@@ -71,6 +71,25 @@ _pt_valid_hex() {
   [[ "${1#\#}" =~ ^[0-9a-fA-F]{6}$ ]]
 }
 
+# Set the terminal background to an already-validated #rrggbb. Mirrors the
+# plugin's _pwdtintii_emit branch exactly so the fzf live-preview path tints the
+# same way the prompt path does: inside tmux, OSC 11 would tint the *global*
+# background shared by every pane (sibling panes racing each other), so route to
+# `tmux select-pane -P` for a per-pane background; outside tmux, write OSC 11 to
+# the controlling terminal. No `-t`: the fzf bind runs inside the focused pane and
+# inherits $TMUX, like the plugin. Best-effort either way — a non-configured
+# /dev/tty (no controlling terminal) must not abort the picker under set -e, so
+# the group redirect swallows the failed redirect's message too (a trailing
+# 2>/dev/null alone would not). Callers validate the hex before emitting.
+_pt_emit_bg() {
+  local hex="$1"
+  if [[ -n "${TMUX:-}" ]]; then
+    tmux select-pane -P "bg=$hex" 2>/dev/null || true
+  else
+    { printf '\e]11;%s\a' "$hex" > /dev/tty; } 2>/dev/null || true
+  fi
+}
+
 # A full-width row painted solid in the shade color.
 _pt_fill_row() {
   printf '\e[48;2;%s;%s;%sm%*s\e[0m\n' "$1" "$2" "$3" "$4" ''
@@ -373,10 +392,10 @@ _pt_focus_tone() {
 
 cmd_emit_family() {
   local tone; tone=$(_pt_focus_tone "${1:-}") || return 0
-  # Best-effort: a non-configured /dev/tty (no controlling terminal) must not
-  # abort the picker under set -e — the group redirect swallows the failed
-  # redirect's message too, which a trailing 2>/dev/null alone would not.
-  { printf '\e]11;%s\a' "$tone" > /dev/tty; } 2>/dev/null || true
+  # _pt_focus_tone returns a validated #rrggbb (it parses each shade through the
+  # 16# math); route it through the tmux-aware emit so inside tmux it tints only
+  # the focused pane, not every pane (the prompt path's _pwdtintii_emit branch).
+  _pt_emit_bg "$tone"
 }
 
 cmd_list() {
@@ -448,7 +467,7 @@ cmd_emit_restore() {
   (( idx >= ${#hexes[@]} )) && idx=0
   local hex="${hexes[idx]}"
   _pt_valid_hex "$hex" || return 0
-  { printf '\e]11;%s\a' "$hex" > /dev/tty; } 2>/dev/null || true
+  _pt_emit_bg "$hex"
 }
 
 # emit-backdrop <palette>: emit that palette's viewer backdrop (the dark/light
@@ -460,7 +479,9 @@ cmd_emit_restore() {
 cmd_emit_backdrop() {
   local pal="${1:-}"
   [[ -z "$pal" ]] && return 0
-  { printf '\e]11;%s\a' "$(_pt_view_backdrop "$pal")" > /dev/tty; } 2>/dev/null || true
+  # _pt_view_backdrop returns one of two hardcoded #rrggbb neutrals — always
+  # valid — so emit it tmux-aware (per-pane under tmux, OSC 11 otherwise).
+  _pt_emit_bg "$(_pt_view_backdrop "$pal")"
 }
 
 # view-advance <statedir>: the ctrl-t step of the viewer. Reads the current cycle
@@ -554,7 +575,8 @@ cmd_view() {
   colorspec=$(cmd_fzf_theme)
 
   # Open on the deliberate dark backdrop (state 0); ctrl-t flips it with the cycle.
-  { printf '\e]11;%s\a' "$(_pt_view_backdrop "$initpal")" > /dev/tty; } 2>/dev/null || true
+  # tmux-aware (per-pane under tmux), like the emit-backdrop the ctrl-t bind runs.
+  _pt_emit_bg "$(_pt_view_backdrop "$initpal")"
 
   # --height=99%, not 100%: at exactly 100% fzf takes over the alternate screen
   # (\e[?1049h on open, \e[?1049l on close), and that buffer switch repaints the

@@ -224,3 +224,60 @@ teardown() { teardown_sandbox; }
   grep -q 'select-pane' "$log"
   grep -q 'bg=default' "$log"
 }
+
+# ── tmux per-pane tinting: the bin/pwdtintii fzf live-preview path ────────────
+# bin/pwdtintii is shared across all three shells (the fish plugin shells out to
+# the same binary for the picker/viewer fzf binds), so its emit subcommands must
+# be tmux-aware too. Same mock as the plugin tmux tests: a `tmux` stub on PATH
+# logs its args; TMUX set selects the per-pane branch. The CLI is a standalone
+# bash script invoked directly, so these run it as a subprocess with TMUX set and
+# the stub ahead on PATH (no fish needed for the binary itself; the setup() gate
+# still skips them where fish is absent, keeping this file's invariant). Assert
+# the stub saw select-pane + bg=#… and stdout carries NO OSC 11 (1b5d3131); the
+# non-tmux branch writes to /dev/tty (not observable) and is pinned in cli.bats.
+
+@test "fish tmux CLI: emit-family routes to select-pane, not OSC 11, when TMUX is set" {
+  local stub="$TEST_HOME/stub_bin" log="$TEST_HOME/tmux.log"
+  mkdir -p "$stub"
+  printf '%s\n' '#!/bin/sh' 'printf "%s\n" "$*" >> "'"$log"'"' 'exit 0' > "$stub/tmux"
+  chmod +x "$stub/tmux"
+  local out
+  out=$(env PWDTINTII_PALETTE="$PWDTINTII_PALETTE" PATH="$stub:$PATH" TMUX=/fake/tmux,0,0 \
+    "$REPO_ROOT/bin/pwdtintii" emit-family blue) 2>/dev/null
+  [ -f "$log" ]
+  grep -q 'select-pane' "$log"
+  grep -q 'bg=#000f38' "$log"   # blue's focus tone: dimmed shade0 on the default palette
+  local dump; dump=$(printf '%s' "$out" | od -An -tx1 | tr -d ' \n')
+  [[ "$dump" != *"1b5d3131"* ]]
+}
+
+@test "fish tmux CLI: emit-restore routes to select-pane, not OSC 11, when TMUX is set" {
+  local stub="$TEST_HOME/stub_bin" log="$TEST_HOME/tmux.log"
+  mkdir -p "$stub"
+  printf '%s\n' '#!/bin/sh' 'printf "%s\n" "$*" >> "'"$log"'"' 'exit 0' > "$stub/tmux"
+  chmod +x "$stub/tmux"
+  local out
+  out=$(env PWDTINTII_PALETTE="$PWDTINTII_PALETTE" PATH="$stub:$PATH" TMUX=/fake/tmux,0,0 \
+    PWDTINTII_VIEW_FAMILY=blue PWDTINTII_VIEW_SHADE=2 \
+    "$REPO_ROOT/bin/pwdtintii" emit-restore) 2>/dev/null
+  [ -f "$log" ]
+  grep -q 'select-pane' "$log"
+  grep -q 'bg=#' "$log"
+  local dump; dump=$(printf '%s' "$out" | od -An -tx1 | tr -d ' \n')
+  [[ "$dump" != *"1b5d3131"* ]]
+}
+
+@test "fish tmux CLI: emit-backdrop routes to select-pane, not OSC 11, when TMUX is set" {
+  local stub="$TEST_HOME/stub_bin" log="$TEST_HOME/tmux.log"
+  mkdir -p "$stub"
+  printf '%s\n' '#!/bin/sh' 'printf "%s\n" "$*" >> "'"$log"'"' 'exit 0' > "$stub/tmux"
+  chmod +x "$stub/tmux"
+  local out
+  out=$(env PWDTINTII_PALETTE="$PWDTINTII_PALETTE" PATH="$stub:$PATH" TMUX=/fake/tmux,0,0 \
+    "$REPO_ROOT/bin/pwdtintii" emit-backdrop "$REPO_ROOT/palettes/default.tsv") 2>/dev/null
+  [ -f "$log" ]
+  grep -q 'select-pane' "$log"
+  grep -q 'bg=#16191f' "$log"   # dark palette's viewer backdrop neutral
+  local dump; dump=$(printf '%s' "$out" | od -An -tx1 | tr -d ' \n')
+  [[ "$dump" != *"1b5d3131"* ]]
+}
