@@ -21,11 +21,11 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends shellcheck zsh bats
+          sudo apt-get install -y --no-install-recommends shellcheck zsh bats fish
 
       - name: Install tools (macOS)
         if: runner.os == 'macOS'
-        run: brew install bash bats-core fzf shellcheck
+        run: brew install bash bats-core fzf shellcheck fish
 
       - name: Shellcheck (bash sources)
         # --severity=warning skips the SC2317 info false-positive on the
@@ -40,6 +40,9 @@ jobs:
 
       - name: Zsh syntax check
         run: zsh -n pwdtintii.plugin.zsh
+
+      - name: Fish syntax check
+        run: fish -n pwdtintii.plugin.fish
 
       - name: Bats suite (Linux)
         if: runner.os == 'Linux'

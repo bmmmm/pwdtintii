@@ -419,3 +419,72 @@ teardown() { teardown_sandbox; }
   [[ "$output" == *"skipping 'bad'"* ]]
   [[ "$output" == *"fams=[good]"* ]]
 }
+
+# ── tmux per-pane tinting ────────────────────────────────────────────────────
+# No real tmux server needed: a mock `tmux` script logs its args to a file and
+# exits 0. The inner bash shell sources the plugin with a PATH that finds the
+# mock first; TMUX is set/unset to toggle the branch.
+
+@test "tmux: emit routes to select-pane, not OSC 11, when TMUX is set" {
+  local stub="$TEST_HOME/stub_bin"
+  local log="$TEST_HOME/tmux.log"
+  mkdir -p "$stub"
+  printf '%s\n' '#!/bin/sh' 'printf "%s\n" "$*" >> "'"$log"'"' 'exit 0' > "$stub/tmux"
+  chmod +x "$stub/tmux"
+  local out
+  out=$(PT_REPO="$REPO_ROOT" PT_PAL="$PWDTINTII_PALETTE" PT_SH="$PWDTINTII_SHADES_DIR" PT_STUB="$stub" \
+    "$BASH4" -c '
+      export PWDTINTII_PALETTE="$PT_PAL" PWDTINTII_SHADES_DIR="$PT_SH" PATH="$PT_STUB:$PATH"
+      source "$PT_REPO/pwdtintii.plugin.bash" 2>/dev/null
+      export TMUX=/fake/tmux,0,0
+      _pwdtintii_emit "#112233"
+    ') 2>/dev/null
+  # select-pane must have been called with the right args
+  [[ -f "$log" ]] || { echo "tmux log missing"; return 1; }
+  grep -q 'select-pane' "$log"
+  grep -q 'bg=#112233' "$log"
+  # stdout must contain NO OSC 11 sequence (ESC ] 1 1 = 1b 5d 31 31)
+  local dump
+  dump=$(printf '%s' "$out" | od -An -tx1 | tr -d ' \n')
+  [[ "$dump" != *"1b5d3131"* ]] || { echo "unexpected OSC 11 in stdout: $dump"; return 1; }
+}
+
+@test "tmux: emit writes OSC 11 to stdout when TMUX is unset" {
+  local stub="$TEST_HOME/stub_bin"
+  local log="$TEST_HOME/tmux.log"
+  mkdir -p "$stub"
+  printf '%s\n' '#!/bin/sh' 'printf "%s\n" "$*" >> "'"$log"'"' 'exit 0' > "$stub/tmux"
+  chmod +x "$stub/tmux"
+  local out
+  out=$(PT_REPO="$REPO_ROOT" PT_PAL="$PWDTINTII_PALETTE" PT_SH="$PWDTINTII_SHADES_DIR" PT_STUB="$stub" \
+    "$BASH4" -c '
+      export PWDTINTII_PALETTE="$PT_PAL" PWDTINTII_SHADES_DIR="$PT_SH" PATH="$PT_STUB:$PATH"
+      source "$PT_REPO/pwdtintii.plugin.bash" 2>/dev/null
+      unset TMUX
+      _pwdtintii_emit "#112233"
+    ') 2>/dev/null
+  # OSC 11 must appear in stdout (ESC ] 1 1 ; ... BEL)
+  local dump
+  dump=$(printf '%s' "$out" | od -An -tx1 | tr -d ' \n')
+  [[ "$dump" == *"1b5d3131"* ]] || { echo "OSC 11 not found in stdout: $dump"; return 1; }
+  # tmux mock must NOT have been called
+  [[ ! -f "$log" ]] || { echo "tmux was called unexpectedly: $(cat "$log")"; return 1; }
+}
+
+@test "tmux: off routes to select-pane bg=default when TMUX is set" {
+  local stub="$TEST_HOME/stub_bin"
+  local log="$TEST_HOME/tmux.log"
+  mkdir -p "$stub"
+  printf '%s\n' '#!/bin/sh' 'printf "%s\n" "$*" >> "'"$log"'"' 'exit 0' > "$stub/tmux"
+  chmod +x "$stub/tmux"
+  PT_REPO="$REPO_ROOT" PT_PAL="$PWDTINTII_PALETTE" PT_SH="$PWDTINTII_SHADES_DIR" PT_STUB="$stub" \
+    "$BASH4" -c '
+      export PWDTINTII_PALETTE="$PT_PAL" PWDTINTII_SHADES_DIR="$PT_SH" PATH="$PT_STUB:$PATH"
+      source "$PT_REPO/pwdtintii.plugin.bash" 2>/dev/null
+      export TMUX=/fake/tmux,0,0
+      pwdtintii_off
+    ' 2>/dev/null
+  [[ -f "$log" ]] || { echo "tmux log missing"; return 1; }
+  grep -q 'select-pane' "$log"
+  grep -q 'bg=default' "$log"
+}

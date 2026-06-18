@@ -6,6 +6,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **fish shell support** (`pwdtintii.plugin.fish`, requires fish 3.5+) — a full
+  native port: resolves identical directory keys, families, shades, and registry
+  hashes as the bash/zsh plugins and emits byte-identical OSC-11 hex. Shares the
+  same per-dir PID registry, so a fish pane and a bash/zsh pane in the same
+  directory still get distinct shades. fzf commands (`pt view`, the picker, the
+  hub) force `SHELL=/bin/sh` so fzf's POSIX binds run correctly. Opt-in aliases
+  in `examples/aliases.fish`; install is a manual `source` line. Pinned by a new
+  `tests/fish.bats` (17 tests) that compares fish output against bash.
+- **tmux per-pane tinting** — when `$TMUX` is set, the tint is applied with
+  `tmux select-pane -P "bg=#..."` instead of the global OSC-11 sequence, keeping
+  each pane's color isolated (OSC 11 would colour the whole terminal, so multiple
+  panes in one window would fight over a single background). `pt off` resets the
+  pane style (`bg=default`). Known limitation: the fzf live-preview tint (while
+  the picker or viewer is open) still uses OSC 11 even inside tmux; the
+  steady-state prompt path is per-pane, and the background snaps back to per-pane
+  when the picker closes.
 - **`pt view`** — a merged list+preview browser: an fzf picker over the families
   with a colored preview pane that `ctrl-t` cycles through swatch and contrast
   views across the dark and light palettes. Read-only — it previews; `pt pick`
