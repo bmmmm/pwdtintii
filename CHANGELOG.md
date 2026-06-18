@@ -3,6 +3,28 @@
 All notable changes to pwdtintii will be documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+- **`pt version`** — prints the installed version (e.g. `pwdtintii 0.4.0`), read
+  from a new single-source `VERSION` file at the repo root. The version lives in
+  one place now instead of being mirrored by hand across the docs; zsh, bash, and
+  fish each read it and print a byte-identical string.
+- **`scripts/release.sh`** — release automation. Given a version it flips the
+  CHANGELOG `## [Unreleased]` header to `## [X.Y.Z] — <date>`, syncs the version
+  strings (the `VERSION` file and the README status line), and runs the CI release
+  job's own CHANGELOG-extraction `awk` as a local preflight — catching the empty-
+  section case that would make the release job exit 1, before any tag exists. With
+  `--yes` it commits and creates the annotated tag; it never pushes (it prints the
+  push commands for you to run).
+
+### Fixed
+- The fzf live-preview tint (while `pt pick` or `pt view` is open) is now per-pane
+  under tmux, matching the steady-state prompt: the picker/viewer background emits
+  route through a tmux-aware helper (`tmux select-pane -P "bg=#..."` when `$TMUX`
+  is set, OSC 11 otherwise), so opening a preview no longer repaints every pane in
+  the window. Resolves the "Known limitation" noted under [0.4.0].
+
 ## [0.4.0] — 2026-06-18
 
 ### Added
