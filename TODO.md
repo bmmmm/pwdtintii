@@ -4,25 +4,26 @@ Entry point for picking up work. Read this first, then pick a section.
 
 ## Status
 
-0.4.0 released 2026-06-18 (`v0.4.0`): fish shell support, tmux per-pane tinting,
-the merged `pt view` browser, APCA scores in `pt contrast`, and high-contrast fzf
-menus over the live tint — on top of 0.3.0 (released 2026-06-15: `pt off`,
-`pt doctor`, a light-terminal palette (`light.tsv`) + ctrl-t picker toggle, a
-self-reloading `pt`, a PWD-cached prompt hot-path, palette validation, macOS CI,
-and the public GitHub mirror). fish was live-confirmed; tmux per-pane is
-functionally verified on real tmux 3.6b (`select-pane -P` sets the focused pane's
-bg to the computed tone, sibling panes independent — data-layer readback, the
-visual look not yet eyeballed). Covered by the
-bats suite (`grep -c '^@test' tests/*.bats` for the live count). Still alpha.
-Dotfiles already source the plugin (`~/.zshrc`).
+0.5.0 released 2026-06-18 (`v0.5.0`, tag set locally — the push is the human's
+step): `pt version` backed by a single-source `VERSION` file, `scripts/release.sh`
+(release automation), and the fzf live-preview tint made per-pane under tmux — on
+top of 0.4.0 (fish shell support, tmux per-pane tinting, the merged `pt view`
+browser, APCA scores in `pt contrast`, high-contrast fzf menus) and 0.3.0
+(released 2026-06-15: `pt off`, `pt doctor`, a light-terminal palette
+(`light.tsv`) + ctrl-t picker toggle, a self-reloading `pt`, a PWD-cached prompt
+hot-path, palette validation, macOS CI, and the public GitHub mirror). fish was
+live-confirmed; tmux per-pane is now fully verified on real tmux 3.6b — the data
+layer (`select-pane -P` sets the focused pane's bg to the computed tone, sibling
+panes independent) and the visual look user-confirmed. Covered by the bats suite
+(`grep -c '^@test' tests/*.bats` for the live count). Still alpha. Dotfiles
+already source the plugin (`~/.zshrc`).
 
-Unreleased since 0.4.0 (see CHANGELOG `[Unreleased]`): `pt version` backed by a
-single-source `VERSION` file, `scripts/release.sh` (flips the CHANGELOG header,
-syncs the version strings, runs the CI release-awk as a preflight, then commits +
-tags — never pushes), and the fzf live-preview tint made per-pane under tmux. The
-tmux path is functionally verified on real tmux 3.6b (focused-pane tint ==
-computed tone, sibling panes independent — data-layer readback); only the visual
-eyeball is left.
+Unreleased since 0.5.0 (see CHANGELOG `[Unreleased]`): `scripts/release.sh` is now
+a real dry-run — a preview (without `--yes`) no longer edits the tracked files in
+place, so the documented dry-run → `--yes` flow works. The dry-run used to mv the
+edits into place, which dirtied the tree and tripped the script's own clean-tree
+precondition on the very `--yes` it pointed you to; it now diffs the proposed
+edits against the current files and writes nothing until `--yes`.
 
 ## Next session — start here
 
@@ -43,10 +44,9 @@ User-confirmed on a real terminal.
 
 Remaining live spot-check (the command sandbox has no tty for OSC 11 / fzf): a
 fresh-terminal pass of the release checklist below — the picker ctrl-t flip,
-light-group preview legibility, and a clean flash-free exit — plus, inside tmux,
-that `pt pick` / `pt view` *visually* tint only the focused pane while open (the
-per-pane logic is proven on real tmux 3.6b on the data layer — `select-pane -P`
-to the computed tone, sibling panes unaffected; only the visual look is left).
+light-group preview legibility, and a clean flash-free exit. The tmux per-pane
+tint (only the focused pane tints while `pt pick` / `pt view` is open) is now
+confirmed visually on real tmux 3.6b, on top of the data-layer proof.
 
 The bats suite is green on a real shell and under the command sandbox alike (use
 `grep -c '^@test' tests/*.bats` for the live count). The `zsh pick_shade skips a
@@ -150,10 +150,12 @@ pwdtintii/
 │   ├── default.tsv         # 37 families × 4 shades (dark themes)
 │   ├── light.tsv           # pale variant for light themes
 │   └── README.md
+├── VERSION                 # single source of truth for the version string
 ├── scripts/
 │   ├── contrast.py         # WCAG + APCA engine (dump + --row machine mode)
 │   ├── contrast-check.sh   # WCAG + APCA check wrapper (needs python3)
-│   └── gen-light-palette.py  # regenerates light.tsv from default.tsv
+│   ├── gen-light-palette.py  # regenerates light.tsv from default.tsv
+│   └── release.sh          # version bump + commit + tag automation (dry-run by default)
 ├── tests/                  # bats suite coupling bash + zsh + fish
 │   ├── helper.bash
 │   ├── parity.bats         # cross-shell key/family/hash parity
@@ -161,6 +163,9 @@ pwdtintii/
 │   ├── cli.bats            # bin/pwdtintii subcommands
 │   ├── palette.bats        # light.tsv parity + contrast-check
 │   ├── fish.bats           # fish vs bash output parity
+│   ├── release.bats        # scripts/release.sh behaviour
+│   ├── version.bats        # pt version parity + doc-drift guard
+│   ├── test_palette_math.py  # WCAG/YIQ/APCA reference checks
 │   └── run.sh
 ├── .github/workflows/
 │   └── ci.yml              # shellcheck + zsh -n + bats

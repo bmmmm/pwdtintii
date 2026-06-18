@@ -157,7 +157,7 @@ teardown() {
 @test "[Unreleased] header is replaced with [X.Y.Z]" {
   _init_fixture_repo
 
-  _release "1.0.0"
+  _release "1.0.0" --yes
 
   grep -q "^## \[1\.0\.0\]" "${TEST_HOME}/CHANGELOG.md"
   # [Unreleased] must be gone.
@@ -169,7 +169,7 @@ teardown() {
 @test "em dash (U+2014, bytes e2 80 94) survives in the CHANGELOG header" {
   _init_fixture_repo
 
-  _release "1.0.0"
+  _release "1.0.0" --yes
 
   local header_hex
   header_hex="$(grep "^## \[1\.0\.0\]" "${TEST_HOME}/CHANGELOG.md" | head -n1 \
@@ -180,7 +180,7 @@ teardown() {
 @test "CHANGELOG header contains today's date" {
   _init_fixture_repo
 
-  _release "1.0.0"
+  _release "1.0.0" --yes
 
   local today
   today="$(date +%F)"
@@ -190,7 +190,7 @@ teardown() {
 @test "CHANGELOG body content is preserved after the header flip" {
   _init_fixture_repo
 
-  _release "1.0.0"
+  _release "1.0.0" --yes
 
   grep -q "something new" "${TEST_HOME}/CHANGELOG.md"
   grep -q "## \[0\.0\.1\]" "${TEST_HOME}/CHANGELOG.md"
@@ -201,7 +201,7 @@ teardown() {
 @test "VERSION file is updated to the new version" {
   _init_fixture_repo
 
-  _release "1.0.0"
+  _release "1.0.0" --yes
 
   local v
   v="$(cat "${TEST_HOME}/VERSION")"
@@ -214,7 +214,7 @@ teardown() {
   git -C "${TEST_HOME}" -c user.email="t@t.t" -c user.name="T" \
     commit -q --allow-empty -m "drop VERSION"
 
-  _release "1.0.0"
+  _release "1.0.0" --yes
 
   local v
   v="$(cat "${TEST_HOME}/VERSION")"
@@ -226,7 +226,7 @@ teardown() {
 @test "README Status line version token is updated" {
   _init_fixture_repo
 
-  _release "1.0.0"
+  _release "1.0.0" --yes
 
   grep -q "^Status: 1\.0\.0" "${TEST_HOME}/README.md"
 }
@@ -234,7 +234,7 @@ teardown() {
 @test "README Status line rest of line is preserved" {
   _init_fixture_repo
 
-  _release "1.0.0"
+  _release "1.0.0" --yes
 
   # Should still contain the suffix after the version.
   grep -q "^Status: 1\.0\.0 · alpha" "${TEST_HOME}/README.md"
@@ -271,6 +271,32 @@ teardown() {
   run _release "1.0.0" 2>&1
   [ "$status" -eq 0 ]
   [[ "$output" == *"--yes"* ]]
+}
+
+@test "dry-run leaves the working tree clean (no in-place edits)" {
+  _init_fixture_repo
+
+  _release "1.0.0"
+
+  # A preview must not touch the tracked files, so a later --yes still sees a
+  # clean tree.
+  git -C "${TEST_HOME}" diff --quiet HEAD
+}
+
+@test "dry-run then --yes applies and tags (the preview → apply flow)" {
+  _init_fixture_repo
+
+  # The documented two-step flow: preview, then commit for real. Regression
+  # guard — the dry-run used to mv into place and dirty the tree, so this --yes
+  # aborted on the clean-tree precondition.
+  _release "1.0.0"
+  _release "1.0.0" --yes
+
+  git -C "${TEST_HOME}" rev-parse "v1.0.0" >/dev/null 2>&1
+  grep -q "^## \[1\.0\.0\]" "${TEST_HOME}/CHANGELOG.md"
+  local v
+  v="$(cat "${TEST_HOME}/VERSION")"
+  [ "$v" = "1.0.0" ]
 }
 
 # ── --yes path: commit and tag ────────────────────────────────────────────────
