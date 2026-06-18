@@ -276,3 +276,61 @@ teardown() { teardown_sandbox; }
   '
   [ "$output" = "0" ]
 }
+
+# ── tmux per-pane tinting (zsh) ──────────────────────────────────────────────
+# bash gets these in plugin.bats and fish in fish.bats; the zsh emit/off tmux
+# branch is byte-identical, so pin it here too. Mock `tmux` logs its args.
+@test "zsh tmux: emit routes to select-pane, not OSC 11, when TMUX is set" {
+  local stub="$TEST_HOME/stub_bin" log="$TEST_HOME/tmux.log"
+  mkdir -p "$stub"
+  printf '%s\n' '#!/bin/sh' 'printf "%s\n" "$*" >> "'"$log"'"' 'exit 0' > "$stub/tmux"
+  chmod +x "$stub/tmux"
+  local out
+  out=$(PT_REPO="$REPO_ROOT" PT_PAL="$PWDTINTII_PALETTE" PT_SH="$PWDTINTII_SHADES_DIR" PT_STUB="$stub" \
+    "$ZSH_BIN" -c '
+      export PWDTINTII_PALETTE="$PT_PAL" PWDTINTII_SHADES_DIR="$PT_SH" PATH="$PT_STUB:$PATH"
+      source "$PT_REPO/pwdtintii.plugin.zsh" 2>/dev/null
+      export TMUX=/fake/tmux,0,0
+      _pwdtintii_emit "#112233"
+    ') 2>/dev/null
+  [[ -f "$log" ]] || { echo "tmux log missing"; return 1; }
+  grep -q 'select-pane' "$log"
+  grep -q 'bg=#112233' "$log"
+  local dump; dump=$(printf '%s' "$out" | od -An -tx1 | tr -d ' \n')
+  [[ "$dump" != *"1b5d3131"* ]] || { echo "unexpected OSC 11: $dump"; return 1; }
+}
+
+@test "zsh tmux: emit writes OSC 11 to stdout when TMUX is unset" {
+  local stub="$TEST_HOME/stub_bin" log="$TEST_HOME/tmux.log"
+  mkdir -p "$stub"
+  printf '%s\n' '#!/bin/sh' 'printf "%s\n" "$*" >> "'"$log"'"' 'exit 0' > "$stub/tmux"
+  chmod +x "$stub/tmux"
+  local out
+  out=$(PT_REPO="$REPO_ROOT" PT_PAL="$PWDTINTII_PALETTE" PT_SH="$PWDTINTII_SHADES_DIR" PT_STUB="$stub" \
+    "$ZSH_BIN" -c '
+      export PWDTINTII_PALETTE="$PT_PAL" PWDTINTII_SHADES_DIR="$PT_SH" PATH="$PT_STUB:$PATH"
+      source "$PT_REPO/pwdtintii.plugin.zsh" 2>/dev/null
+      unset TMUX
+      _pwdtintii_emit "#112233"
+    ') 2>/dev/null
+  local dump; dump=$(printf '%s' "$out" | od -An -tx1 | tr -d ' \n')
+  [[ "$dump" == *"1b5d3131"* ]] || { echo "OSC 11 not in stdout: $dump"; return 1; }
+  [[ ! -f "$log" ]] || { echo "tmux called unexpectedly: $(cat "$log")"; return 1; }
+}
+
+@test "zsh tmux: off routes to select-pane bg=default when TMUX is set" {
+  local stub="$TEST_HOME/stub_bin" log="$TEST_HOME/tmux.log"
+  mkdir -p "$stub"
+  printf '%s\n' '#!/bin/sh' 'printf "%s\n" "$*" >> "'"$log"'"' 'exit 0' > "$stub/tmux"
+  chmod +x "$stub/tmux"
+  PT_REPO="$REPO_ROOT" PT_PAL="$PWDTINTII_PALETTE" PT_SH="$PWDTINTII_SHADES_DIR" PT_STUB="$stub" \
+    "$ZSH_BIN" -c '
+      export PWDTINTII_PALETTE="$PT_PAL" PWDTINTII_SHADES_DIR="$PT_SH" PATH="$PT_STUB:$PATH"
+      source "$PT_REPO/pwdtintii.plugin.zsh" 2>/dev/null
+      export TMUX=/fake/tmux,0,0
+      pwdtintii_off
+    ' 2>/dev/null
+  [[ -f "$log" ]] || { echo "tmux log missing"; return 1; }
+  grep -q 'select-pane' "$log"
+  grep -q 'bg=default' "$log"
+}

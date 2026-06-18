@@ -225,11 +225,18 @@ _pwdtintii_release() {
 }
 
 # ── OSC 11 emission (validate hex; refuse to emit anything else) ─────────────
+# Inside tmux, OSC 11 tints the *global* terminal background shared by all panes.
+# Sibling panes in the same terminal would race and overwrite each other's colour.
+# Use tmux select-pane -P instead to set a per-pane background that stays isolated.
 _pwdtintii_emit() {
   local hex="$1"
   [[ "$hex" == \#* ]] || hex="#$hex"
   [[ "$hex" =~ ^#[0-9a-fA-F]{6}$ ]] || return 1
-  printf '\e]11;%s\a' "$hex"
+  if [[ -n "$TMUX" ]]; then
+    tmux select-pane -P "bg=$hex" 2>/dev/null || true
+  else
+    printf '\e]11;%s\a' "$hex"
+  fi
 }
 
 # ── Public: apply ────────────────────────────────────────────────────────────
@@ -325,7 +332,11 @@ pwdtintii_off() {
   unset _PWDTINTII_FORCED_FAMILY _PWDTINTII_PINNED _PWDTINTII_FAMILY \
         _PWDTINTII_SHADE_IDX _PWDTINTII_LAST_PWD _PWDTINTII_LAST_KEY
   _pwdtintii_release
-  printf '\e]111\a'
+  if [[ -n "$TMUX" ]]; then
+    tmux select-pane -P 'bg=default' 2>/dev/null || true
+  else
+    printf '\e]111\a'
+  fi
 }
 
 # fzf picker. Prints "<palette-file>\t<family>" for the committed pick, so the

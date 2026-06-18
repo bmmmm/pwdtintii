@@ -20,6 +20,18 @@ _pwdtintii_find_bash4() {
 BASH4="$(_pwdtintii_find_bash4 || true)"
 ZSH_BIN="$(command -v zsh 2>/dev/null || true)"
 
+# fish 3.4+ (path resolve, --on-event fish_exit). Honour PWDTINTII_TEST_FISH like
+# the bash override, then the usual brew / PATH locations.
+_pwdtintii_find_fish() {
+  local c
+  for c in "${PWDTINTII_TEST_FISH:-}" /opt/homebrew/bin/fish /usr/local/bin/fish fish; do
+    [[ -n "$c" ]] || continue
+    command -v "$c" >/dev/null 2>&1 && { printf '%s\n' "$c"; return 0; }
+  done
+  return 1
+}
+FISH_BIN="$(_pwdtintii_find_fish || true)"
+
 setup_sandbox() {
   TEST_HOME="$(mktemp -d)"
   export PWDTINTII_PALETTE="$REPO_ROOT/palettes/default.tsv"
@@ -30,6 +42,7 @@ teardown_sandbox() { [[ -n "${TEST_HOME:-}" ]] && rm -rf "$TEST_HOME"; }
 
 need_bash() { [[ -n "$BASH4" ]] || skip "no bash >= 4 available"; }
 need_zsh()  { [[ -n "$ZSH_BIN" ]] || skip "no zsh available"; }
+need_fish() { [[ -n "$FISH_BIN" ]] || skip "no fish available"; }
 need_both() { need_bash; need_zsh; }
 
 # Run a snippet with the bash plugin sourced. Snippet references $HOME/$PWD and
@@ -70,3 +83,29 @@ _pt_emit_snip='
   for i in 0 1 2 3; do _PWDTINTII_SHADE_IDX=$i; pwdtintii_apply | od -An -tx1 | tr -d " \n"; printf "\n"; done'
 bash_emit_shades() { bash_eval "$1" "$2" "${_pt_emit_snip//__FAM__/$3}"; }
 zsh_emit_shades()  { zsh_eval  "$1" "$2" "${_pt_emit_snip//__FAM__/$3}"; }
+
+# fish differs from bash_eval/zsh_eval: $PWD is read-only in fish (bound to the
+# real cwd, not fakeable), and fish needs a writable HOME/XDG, so fish_eval takes
+# only a snippet (fish syntax) and points HOME/XDG at the per-test sandbox. A
+# snippet that needs a specific $PWD either `cd`s into a real dir or stubs
+# PWDTINTII_DIR_KEY_FN; one that needs the hash mapping calls _pwdtintii_family_for
+# with the key as an argument (which never reads $PWD).
+fish_eval() { # $1=snippet (fish)
+  mkdir -p "$TEST_HOME/.local/share/fish" "$TEST_HOME/.config/fish" 2>/dev/null
+  PT_REPO="$REPO_ROOT" PT_SNIP="$1" PT_PAL="$PWDTINTII_PALETTE" PT_SH="$PWDTINTII_SHADES_DIR" \
+    HOME="$TEST_HOME" XDG_DATA_HOME="$TEST_HOME/.local/share" XDG_CONFIG_HOME="$TEST_HOME/.config" \
+    "$FISH_BIN" -c '
+      set -gx PWDTINTII_PALETTE "$PT_PAL"
+      set -gx PWDTINTII_SHADES_DIR "$PT_SH"
+      source "$PT_REPO/pwdtintii.plugin.fish" 2>/dev/null
+      eval "$PT_SNIP"'
+}
+
+# fish side of _pt_emit_snip: drive the 1-based ${shades[idx+1]} apply subscript
+# across shade 0..3 so it must agree byte-for-byte with bash's 0-based form.
+_pt_fish_emit_snip='
+  set -g _PWDTINTII_LAST_PWD foo; set -g _PWDTINTII_LAST_KEY k; set -g _PWDTINTII_PINNED k
+  set -g _PWDTINTII_FORCED_FAMILY __FAM__; set -g _PWDTINTII_FAMILY __FAM__
+  set -e _PWDTINTII_FORCE_REAPPLY
+  for i in 0 1 2 3; set -g _PWDTINTII_SHADE_IDX $i; pwdtintii_apply | od -An -tx1 | tr -d " \n"; printf "\n"; end'
+fish_emit_shades() { fish_eval "${_pt_fish_emit_snip//__FAM__/$1}"; }

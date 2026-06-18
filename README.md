@@ -5,7 +5,7 @@ background shifts to a color derived from it; every split/pane in the same dir
 gets a distinct shade. Deterministic, no daemon, no persisted state,
 terminal-agnostic via OSC 11.
 
-Status: 0.3.0 · alpha · zsh + bash 4+
+Status: 0.3.0 · alpha · zsh + bash 4+ + fish 3.5+
 
 ![pt pick — live family picker with per-shade preview](docs/picker.png)
 
@@ -19,9 +19,9 @@ color underneath whatever theme you run, not a theme itself.
 ## Install
 
 Needs a terminal that honors OSC 11 (Ghostty, kitty, WezTerm, Alacritty,
-iTerm2, modern xterm), **zsh** or **bash 4+**, and `shasum`/`sha1sum`. `fzf` is
-optional but powers the menus below (both degrade to a printed list without it);
-`pt contrast` additionally needs `python3`.
+iTerm2, modern xterm), **zsh**, **bash 4+**, or **fish 3.5+**, and
+`shasum`/`sha1sum`. `fzf` is optional but powers the menus below (both degrade
+to a printed list without it); `pt contrast` additionally needs `python3`.
 
 ```sh
 git clone https://github.com/bmmmm/pwdtintii ~/.local/share/pwdtintii
@@ -40,6 +40,16 @@ source ~/.local/share/pwdtintii/examples/aliases.zsh   # optional: pt + short al
 source ~/.local/share/pwdtintii/pwdtintii.plugin.bash
 source ~/.local/share/pwdtintii/examples/aliases.bash  # optional
 ```
+
+**fish** (3.5+) — add to `~/.config/fish/config.fish`:
+
+```fish
+source ~/.local/share/pwdtintii/pwdtintii.plugin.fish
+source ~/.local/share/pwdtintii/examples/aliases.fish  # optional: pt + short aliases
+```
+
+Note: the flat plugin file is not auto-loaded by fish plugin managers (fisher,
+oh-my-fish) — use the manual `source` line above.
 
 Open a fresh shell — the tint kicks in on the first prompt.
 
@@ -116,19 +126,23 @@ alongside it for light terminal themes: switch to it live in the picker with
 
 `$PWD` → a stable key (git-root, else first segment under `$HOME`) →
 `shasum(key) % families` picks the family → a per-key PID registry hands each
-shell a distinct shade → `printf '\e]11;<hex>\a'` sets the background. It's
-re-applied from `precmd` (zsh) / `PROMPT_COMMAND` (bash) and released on exit;
-steady-state prompts in the same dir only re-emit, no subprocess work.
+shell a distinct shade → the background is set via `printf '\e]11;<hex>\a'`
+(OSC 11), or via `tmux select-pane -P "bg=#..."` when running inside tmux so
+each pane gets its own color instead of all panes sharing a single terminal
+background. `pt off` resets to `bg=default` in tmux mode. It's re-applied from
+`precmd` (zsh) / `PROMPT_COMMAND` (bash) / `fish_prompt` event (fish) and
+released on exit; steady-state prompts in the same dir only re-emit, no
+subprocess work.
 
 ## Development
 
 ```sh
-tests/run.sh        # bats suite; bash and zsh kept behaviourally in lockstep
+tests/run.sh        # bats suite; bash, zsh, and fish kept behaviourally in lockstep
 ```
 
 macOS `/bin/bash` is 3.2 — point the suite at a newer one with
 `PWDTINTII_TEST_BASH=/opt/homebrew/bin/bash tests/run.sh`. CI runs shellcheck,
-`zsh -n`, and bats on every push.
+`zsh -n`, `fish -n`, and bats on every push.
 
 ## License
 

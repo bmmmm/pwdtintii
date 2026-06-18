@@ -5,13 +5,13 @@ Entry point for picking up work. Read this first, then pick a section.
 ## Status
 
 0.3.0 released 2026-06-15 (`v0.3.0`); unreleased work sits on top of it — see
-the CHANGELOG `[Unreleased]` section (the merged `pt view` browser, APCA scores
-in `pt contrast`, high-contrast fzf menus over the live tint). 0.3.0 itself
-added `pt off`, `pt doctor`, a light-terminal palette (`light.tsv`) + ctrl-t
-picker toggle, a self-reloading `pt`, a PWD-cached prompt hot-path, palette
-validation, macOS CI, and the public GitHub mirror. Covered by the bats suite
-(`grep -c '^@test' tests/*.bats` for the live count). Still alpha. Dotfiles
-already source the plugin (`~/.zshrc`).
+the CHANGELOG `[Unreleased]` section (fish shell support, tmux per-pane tinting,
+the merged `pt view` browser, APCA scores in `pt contrast`, high-contrast fzf
+menus over the live tint). 0.3.0 itself added `pt off`, `pt doctor`, a
+light-terminal palette (`light.tsv`) + ctrl-t picker toggle, a self-reloading
+`pt`, a PWD-cached prompt hot-path, palette validation, macOS CI, and the public
+GitHub mirror. Covered by the bats suite (`grep -c '^@test' tests/*.bats` for
+the live count). Still alpha. Dotfiles already source the plugin (`~/.zshrc`).
 
 ## Next session — start here
 
@@ -34,7 +34,7 @@ Remaining live spot-check (the command sandbox has no tty for OSC 11 / fzf): a
 fresh-terminal pass of the release checklist below — the picker ctrl-t flip,
 light-group preview legibility, and a clean flash-free exit.
 
-The bats suite is green on a real shell (118 tests). Under the command sandbox
+The bats suite is green on a real shell (138 tests). Under the command sandbox
 the `zsh pick_shade skips a live PID` test reads red because `kill -0` is blocked
 there — not a real failure; run the suite on a real shell to confirm.
 
@@ -78,8 +78,13 @@ there — not a real failure; run the suite on a real shell to confirm.
 
 ## Open work (medium)
 
-- [ ] fish shell support — `function --on-event fish_prompt`
-- [ ] tmux integration — set per-pane background via `select-pane -P`
+- [x] fish shell support — `pwdtintii.plugin.fish` (fish 3.5+), full native port;
+      byte-identical OSC-11 + shared PID registry; `tests/fish.bats` (17 tests)
+      comparing fish vs bash; `examples/aliases.fish`; fzf commands force
+      `SHELL=/bin/sh`. ← erledigt 2026-06-18
+- [x] tmux integration — per-pane background via `tmux select-pane -P "bg=#..."`;
+      `pt off` resets to `bg=default`; fzf live-preview still uses OSC 11 (snaps
+      back on picker close). ← erledigt 2026-06-18
 - [x] Light-theme palette variant — `palettes/light.tsv`, generated from
       `default.tsv` by `scripts/gen-light-palette.py` (same families/order, pale
       WCAG-readable shades). contrast-check + preview are now theme-aware, and
@@ -120,6 +125,7 @@ there — not a real failure; run the suite on a real shell to confirm.
 pwdtintii/
 ├── pwdtintii.plugin.zsh    # main zsh plugin
 ├── pwdtintii.plugin.bash   # main bash plugin (4+)
+├── pwdtintii.plugin.fish   # native fish plugin (3.5+)
 ├── bin/pwdtintii           # CLI companion (fzf preview helper)
 ├── palettes/
 │   ├── default.tsv         # 37 families × 4 shades (dark themes)
@@ -129,18 +135,20 @@ pwdtintii/
 │   ├── contrast.py         # WCAG + APCA engine (dump + --row machine mode)
 │   ├── contrast-check.sh   # WCAG + APCA check wrapper (needs python3)
 │   └── gen-light-palette.py  # regenerates light.tsv from default.tsv
-├── tests/                  # bats suite coupling bash + zsh
+├── tests/                  # bats suite coupling bash + zsh + fish
 │   ├── helper.bash
 │   ├── parity.bats         # cross-shell key/family/hash parity
 │   ├── plugin.bats         # bash plugin behaviour
 │   ├── cli.bats            # bin/pwdtintii subcommands
 │   ├── palette.bats        # light.tsv parity + contrast-check
+│   ├── fish.bats           # fish vs bash output parity (17 tests)
 │   └── run.sh
 ├── .github/workflows/
 │   └── ci.yml              # shellcheck + zsh -n + bats
 ├── examples/
 │   ├── aliases.zsh         # opt-in pt, ptpick, ...
 │   ├── aliases.bash
+│   ├── aliases.fish
 │   └── overrides.tsv       # template for named overrides
 ├── LICENSE                 # Apache-2.0
 ├── NOTICE
