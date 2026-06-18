@@ -3,10 +3,10 @@
 All notable changes to pwdtintii will be documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [0.5.0] — 2026-06-18
 
 ### Added
-- **`pt version`** — prints the installed version (e.g. `pwdtintii 0.4.0`), read
+- **`pt version`** — prints the installed version (e.g. `pwdtintii 0.5.0`), read
   from a new single-source `VERSION` file at the repo root. The version lives in
   one place now instead of being mirrored by hand across the docs; zsh, bash, and
   fish each read it and print a byte-identical string.
