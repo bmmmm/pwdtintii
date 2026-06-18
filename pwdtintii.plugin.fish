@@ -591,6 +591,14 @@ function pwdtintii
             pwdtintii view
         case contrast
             "$_pwdtintii_self/scripts/contrast-check.sh"
+        case version
+            set -l _v
+            if test -r "$_pwdtintii_self/VERSION"
+                set _v (string trim (cat "$_pwdtintii_self/VERSION"))
+            else
+                set _v "(version unknown)"
+            end
+            printf '%s\n' "pwdtintii $_v"
         case help -h --help
             _pwdtintii_help
         case '*'
@@ -675,6 +683,7 @@ function _pwdtintii_help
     printf '%s\n' "  pt contrast        WCAG + APCA contrast of all shades"
     printf '%s\n' "  pt doctor          diagnose terminal OSC 11 / fzf / palette"
     printf '%s\n' "  pt help            this overview"
+    printf '%s\n' "  pt version         print the installed version"
     printf '\n'
     printf '%s\n' "  aliases: ptpick · ptlist · ptreload · ptview · ptcontrast"
 end

@@ -97,6 +97,7 @@ there is no manual re-source step.
 | `pt contrast`      | WCAG + APCA contrast check of every shade |
 | `pt doctor`        | check OSC 11 support, fzf, and the palette |
 | `pt help`          | this overview |
+| `pt version`       | print the installed version |
 
 Short aliases stay as direct accelerators: `ptpick ptlist ptreload ptview
 ptcontrast`. Most commands also map to a `pwdtintii_*` function (e.g.

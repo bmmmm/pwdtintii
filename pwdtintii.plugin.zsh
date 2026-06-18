@@ -544,6 +544,15 @@ pwdtintii() {
                      pwdtintii_apply ;;   # safety net: the viewer restores the tint itself on enter/esc (before fzf clears, so no flash); this also re-emits after ctrl-c
     preview)         pwdtintii view ;;    # back-compat: the old static dump is now view
     contrast)        "${_pwdtintii_self}/scripts/contrast-check.sh" ;;
+    version)
+      local _v
+      if [[ -r "${_pwdtintii_self}/VERSION" ]]; then
+        _v="$(< "${_pwdtintii_self}/VERSION")"
+        _v="${_v%%[[:space:]]*}"
+      else
+        _v="(version unknown)"
+      fi
+      printf '%s\n' "pwdtintii ${_v}" ;;
     help|-h|--help)  _pwdtintii_help ;;
     *)
       printf '%s\n' "pwdtintii: unknown command: $sub" >&2
@@ -636,6 +645,7 @@ _pwdtintii_help() {
   printf '%s\n' "  pt contrast        WCAG + APCA contrast of all shades"
   printf '%s\n' "  pt doctor          diagnose terminal OSC 11 / fzf / palette"
   printf '%s\n' "  pt help            this overview"
+  printf '%s\n' "  pt version         print the installed version"
   printf '\n'
   printf '%s\n' "  aliases: ptpick · ptlist · ptreload · ptview · ptcontrast"
 }
