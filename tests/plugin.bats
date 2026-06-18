@@ -488,3 +488,63 @@ teardown() { teardown_sandbox; }
   grep -q 'select-pane' "$log"
   grep -q 'bg=default' "$log"
 }
+
+# ── tmux per-pane tinting: the bin/pwdtintii fzf live-preview path ────────────
+# The CLI's emit subcommands (driven by the fzf binds in the picker/viewer) must
+# be tmux-aware too, not just the plugin's prompt-path _pwdtintii_emit. Same mock:
+# a `tmux` stub on PATH logs its args; TMUX set selects the per-pane branch. The
+# CLI is a standalone bash script invoked directly (not sourced), so we run it as
+# a subprocess with TMUX exported and the stub ahead on PATH, and assert the
+# stub saw `select-pane` + `bg=#…` while stdout carries NO OSC 11 (1b5d3131).
+# The non-tmux branch writes to /dev/tty (not stdout) and so is not observable
+# here — cli.bats already pins that path's clean exit; these pin the tmux branch.
+
+@test "tmux CLI: emit-family routes to select-pane, not OSC 11, when TMUX is set" {
+  local stub="$TEST_HOME/stub_bin" log="$TEST_HOME/tmux.log"
+  mkdir -p "$stub"
+  printf '%s\n' '#!/bin/sh' 'printf "%s\n" "$*" >> "'"$log"'"' 'exit 0' > "$stub/tmux"
+  chmod +x "$stub/tmux"
+  local out
+  out=$(env PWDTINTII_PALETTE="$PWDTINTII_PALETTE" PATH="$stub:$PATH" TMUX=/fake/tmux,0,0 \
+    "$REPO_ROOT/bin/pwdtintii" emit-family blue) 2>/dev/null
+  [[ -f "$log" ]] || { echo "tmux log missing"; return 1; }
+  grep -q 'select-pane' "$log"
+  grep -q 'bg=#' "$log"
+  # blue's focus tone is the dimmed shade0 (#000f38 on the default palette).
+  grep -q 'bg=#000f38' "$log"
+  local dump; dump=$(printf '%s' "$out" | od -An -tx1 | tr -d ' \n')
+  [[ "$dump" != *"1b5d3131"* ]] || { echo "unexpected OSC 11 in stdout: $dump"; return 1; }
+}
+
+@test "tmux CLI: emit-restore routes to select-pane, not OSC 11, when TMUX is set" {
+  local stub="$TEST_HOME/stub_bin" log="$TEST_HOME/tmux.log"
+  mkdir -p "$stub"
+  printf '%s\n' '#!/bin/sh' 'printf "%s\n" "$*" >> "'"$log"'"' 'exit 0' > "$stub/tmux"
+  chmod +x "$stub/tmux"
+  # emit-restore re-emits the shell's current family/shade (PWDTINTII_VIEW_*).
+  local out
+  out=$(env PWDTINTII_PALETTE="$PWDTINTII_PALETTE" PATH="$stub:$PATH" TMUX=/fake/tmux,0,0 \
+    PWDTINTII_VIEW_FAMILY=blue PWDTINTII_VIEW_SHADE=2 \
+    "$REPO_ROOT/bin/pwdtintii" emit-restore) 2>/dev/null
+  [[ -f "$log" ]] || { echo "tmux log missing"; return 1; }
+  grep -q 'select-pane' "$log"
+  grep -q 'bg=#' "$log"
+  local dump; dump=$(printf '%s' "$out" | od -An -tx1 | tr -d ' \n')
+  [[ "$dump" != *"1b5d3131"* ]] || { echo "unexpected OSC 11 in stdout: $dump"; return 1; }
+}
+
+@test "tmux CLI: emit-backdrop routes to select-pane, not OSC 11, when TMUX is set" {
+  local stub="$TEST_HOME/stub_bin" log="$TEST_HOME/tmux.log"
+  mkdir -p "$stub"
+  printf '%s\n' '#!/bin/sh' 'printf "%s\n" "$*" >> "'"$log"'"' 'exit 0' > "$stub/tmux"
+  chmod +x "$stub/tmux"
+  # The dark palette's viewer backdrop is the dark neutral #16191f.
+  local out
+  out=$(env PWDTINTII_PALETTE="$PWDTINTII_PALETTE" PATH="$stub:$PATH" TMUX=/fake/tmux,0,0 \
+    "$REPO_ROOT/bin/pwdtintii" emit-backdrop "$REPO_ROOT/palettes/default.tsv") 2>/dev/null
+  [[ -f "$log" ]] || { echo "tmux log missing"; return 1; }
+  grep -q 'select-pane' "$log"
+  grep -q 'bg=#16191f' "$log"
+  local dump; dump=$(printf '%s' "$out" | od -An -tx1 | tr -d ' \n')
+  [[ "$dump" != *"1b5d3131"* ]] || { echo "unexpected OSC 11 in stdout: $dump"; return 1; }
+}
