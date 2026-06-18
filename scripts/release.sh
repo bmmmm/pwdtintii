@@ -195,37 +195,49 @@ if [[ "$header_hex" != *"e28094"* ]]; then
   Header bytes: ${header_hex}"
 fi
 
-# ── apply edits in-place ──────────────────────────────────────────────────────
+# ── show the proposed diff (temp vs current — nothing is written yet) ─────────
+# A dry-run must be side-effect-free: diff the temp files against the current
+# ones so a preview leaves the working tree untouched, and a later --yes still
+# sees a clean tree. (This used to mv into place during the dry-run, which
+# dirtied the tree and made the documented dry-run → --yes sequence abort on the
+# script's own clean-tree precondition — and the header flip left no
+# [Unreleased] for a second pass to find.)
 
-mv "$TMP_CHANGELOG" "$CHANGELOG"
-mv "$TMP_README"    "$README"
-mv "$TMP_VERSION"   "$VERSION_FILE"
+_diff_pair() {
+  local real="$1" tmp="$2"
+  [[ -f "$real" ]] || real=/dev/null
+  git -C "$REPO_ROOT" diff --no-index -- "$real" "$tmp" 2>/dev/null || true
+}
 
-# ── show diff ─────────────────────────────────────────────────────────────────
-
-printf '\n=== Version bump diff ===\n'
-git -C "$REPO_ROOT" diff -- CHANGELOG.md README.md VERSION 2>/dev/null || true
+printf '\n=== Version bump diff (current → proposed) ===\n'
+_diff_pair "$CHANGELOG"    "$TMP_CHANGELOG"
+_diff_pair "$README"       "$TMP_README"
+_diff_pair "$VERSION_FILE" "$TMP_VERSION"
 printf '=================================\n\n'
 
-# ── dry-run stop ──────────────────────────────────────────────────────────────
+# ── dry-run stop: nothing was modified ────────────────────────────────────────
 
 if [[ "$DO_COMMIT" -eq 0 ]]; then
   printf '%s\n' \
-    "Dry-run complete. Files have been modified in place but NOT committed." \
+    "Dry-run complete. No files were modified — this was a preview only." \
     "" \
     "Preflight passed: CHANGELOG section for [${VERSION}] is non-empty." \
     "" \
-    "To proceed with commit + annotated tag, run:" \
+    "To apply the edits, commit, and tag, re-run with --yes:" \
     "  scripts/release.sh ${VERSION} --desc \"${DESC}\" --yes" \
     "" \
     "That will:" \
-    "  1. git add CHANGELOG.md README.md VERSION" \
+    "  1. apply the diff above to CHANGELOG.md README.md VERSION" \
     "  2. git commit -m 'release: ${TAG}'" \
     "  3. git tag -a ${TAG} -m '${TAG} ${EM_DASH} ${DESC}'"
   exit 0
 fi
 
-# ── commit + tag ──────────────────────────────────────────────────────────────
+# ── apply edits, then commit + tag ────────────────────────────────────────────
+
+mv "$TMP_CHANGELOG" "$CHANGELOG"
+mv "$TMP_README"    "$README"
+mv "$TMP_VERSION"   "$VERSION_FILE"
 
 git -C "$REPO_ROOT" add -- CHANGELOG.md README.md VERSION
 git -C "$REPO_ROOT" commit -m "release: ${TAG}"

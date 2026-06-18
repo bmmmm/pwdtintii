@@ -3,6 +3,16 @@
 All notable changes to pwdtintii will be documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Fixed
+- `scripts/release.sh` is now a real dry-run: a preview (without `--yes`) no
+  longer edits the tracked files in place. It used to flip the CHANGELOG header
+  and bump VERSION/README on disk, leaving the tree dirty (and no `[Unreleased]`
+  header for a second pass) — so the very `--yes` the dry-run pointed you to
+  aborted on the script's own clean-tree precondition. The preview now diffs the
+  proposed edits against the current files and writes nothing until `--yes`.
+
 ## [0.5.0] — 2026-06-18
 
 ### Added
