@@ -13,7 +13,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   directory still get distinct shades. fzf commands (`pt view`, the picker, the
   hub) force `SHELL=/bin/sh` so fzf's POSIX binds run correctly. Opt-in aliases
   in `examples/aliases.fish`; install is a manual `source` line. Pinned by a new
-  `tests/fish.bats` (17 tests) that compares fish output against bash.
+  `tests/fish.bats` (19 tests) that compares fish output against bash.
 - **tmux per-pane tinting** — when `$TMUX` is set, the tint is applied with
   `tmux select-pane -P "bg=#..."` instead of the global OSC-11 sequence, keeping
   each pane's color isolated (OSC 11 would colour the whole terminal, so multiple
