@@ -30,8 +30,8 @@ edits against the current files and writes nothing until `--yes`.
 The `ctrl-t` live-tint saga is resolved: in both `pt pick` and `pt view` the
 terminal background now flips together with the list/swatches (routed through
 fzf's coordinated `execute-silent`, not a raw `transform` write fzf dropped), and
-ENTER/ESC close flash-free (inline sub-100% fzf). `pt pick` is user-confirmed on
-a real terminal; `pt view` rides the same fix path. See the CHANGELOG
+ENTER/ESC close flash-free (inline sub-100% fzf). Both `pt pick` and `pt view`
+are user-confirmed flash-free on a real terminal. See the CHANGELOG
 `[0.4.0]` → Fixed for the full list (also: `$?` preservation, the
 palette-path normalization that kept the toggle alive across a commit, array
 `PROMPT_COMMAND`, newline-less palettes, zsh `nounset`).
@@ -43,8 +43,9 @@ terminal too narrow for a side-by-side split the preview stacks below the list.
 User-confirmed on a real terminal.
 
 Remaining live spot-check (the command sandbox has no tty for OSC 11 / fzf): a
-fresh-terminal pass of the release checklist below — the picker ctrl-t flip,
-light-group preview legibility, and a clean flash-free exit. The tmux per-pane
+fresh-terminal pass of the release checklist below — the picker ctrl-t flip and
+light-group preview legibility. The flash-free exit is now user-confirmed on a
+real terminal for both `pt pick` and `pt view`. The tmux per-pane
 tint (only the focused pane tints while `pt pick` / `pt view` is open) is now
 confirmed visually on real tmux 3.6b, on top of the data-layer proof.
 
