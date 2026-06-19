@@ -285,7 +285,6 @@ function pwdtintii_apply
         set shade_idx (_pwdtintii_pick_shade $key "" $keyhash)
         set -g _PWDTINTII_PINNED $key
         set -g _PWDTINTII_SHADE_IDX $shade_idx
-        set -g _PWDTINTII_KEYHASH $keyhash
         test -z "$family"; and set family (_pwdtintii_family_for $key)
         set -g _PWDTINTII_FAMILY $family
         set -g _PWDTINTII_REG "$PWDTINTII_SHADES_DIR/$keyhash.tsv"
@@ -362,6 +361,7 @@ function pwdtintii_off
     set -e _PWDTINTII_LAST_PWD
     set -e _PWDTINTII_LAST_KEY
     _pwdtintii_release
+    set -e _PWDTINTII_REG  # release used it; drop the now-stale registry path
     if test -n "$TMUX"
         tmux select-pane -P 'bg=default' 2>/dev/null; or true
     else

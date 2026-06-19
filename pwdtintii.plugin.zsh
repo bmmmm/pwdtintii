@@ -249,7 +249,6 @@ pwdtintii_apply() {
     shade_idx=$(_pwdtintii_pick_shade "$key" "" "$keyhash")
     _PWDTINTII_PINNED="$key"
     _PWDTINTII_SHADE_IDX="$shade_idx"
-    _PWDTINTII_KEYHASH="$keyhash"
     [[ -z "$family" ]] && family=$(_pwdtintii_family_for "$key")
     _PWDTINTII_FAMILY="$family"
     _PWDTINTII_REG="${PWDTINTII_SHADES_DIR}/${keyhash}.tsv"
@@ -315,6 +314,7 @@ pwdtintii_off() {
   unset _PWDTINTII_FORCED_FAMILY _PWDTINTII_PINNED _PWDTINTII_FAMILY \
         _PWDTINTII_SHADE_IDX _PWDTINTII_LAST_PWD _PWDTINTII_LAST_KEY
   _pwdtintii_release
+  unset _PWDTINTII_REG   # release used it; drop the now-stale registry path
   if [[ -n "$TMUX" ]]; then
     tmux select-pane -P 'bg=default' 2>/dev/null || true
   else
