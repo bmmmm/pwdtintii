@@ -91,6 +91,25 @@ teardown() { teardown_sandbox; }
   [ "$(bash_eval /testhome / 'pwdtintii help')" = "$(fish_eval 'pwdtintii help')" ]
 }
 
+# doctor carries the same hand-mirrored text as help/list; parity.bats pins it
+# bash<->zsh off-tty, this pins fish<->bash so fish's extra intermediate vars
+# can't silently drift. The "terminal:" line reads TERM/COLORTERM/TERM_PROGRAM —
+# bash_eval pins TERM (fish_eval does not) and the rest are inherited — so pin all
+# three identically here, making the comparison independent of the runner's
+# terminal. doctor reads no $PWD, so fish not faking it is fine.
+@test "fish doctor output matches bash (off-tty)" {
+  need_bash
+  export TERM="$PT_TERM" COLORTERM=truecolor TERM_PROGRAM=bats
+  local b f
+  b="$(bash_eval /testhome /testhome/proj 'pwdtintii doctor')"
+  f="$(fish_eval 'pwdtintii doctor')"
+  if [[ "$b" != "$f" ]]; then
+    { printf -- '--- bash\n%s\n--- fish\n%s\n--- diff (bash vs fish)\n' "$b" "$f"
+      diff <(printf '%s\n' "$b") <(printf '%s\n' "$f") || true; } >&2
+    return 1
+  fi
+}
+
 @test "fish dispatcher rejects an unknown command" {
   run fish_eval 'pwdtintii frobnicate 2>&1; echo "rc=$status"'
   [[ "$output" == *"unknown command"* ]]
