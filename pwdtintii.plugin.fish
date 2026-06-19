@@ -29,7 +29,12 @@ set -q PWDTINTII_DIR_KEY_FN; or set -g PWDTINTII_DIR_KEY_FN _pwdtintii_default_k
 # (file changed on disk after sourcing — re-source or open a new shell to apply).
 set -g _PWDTINTII_PLUGIN_FILE "$_pwdtintii_self/pwdtintii.plugin.fish"
 function _pwdtintii_mtime
-    command stat -f %m "$argv[1]" 2>/dev/null; or command stat -c %Y "$argv[1]" 2>/dev/null
+    # BSD stat (-f %m, macOS) exits 0 and prints the mtime; GNU stat (-f means
+    # --file-system) exits non-zero and leaks filesystem stats into the output —
+    # capture first, only print on exit 0, else fall back to GNU -c %Y.
+    set -l t (command stat -f %m "$argv[1]" 2>/dev/null)
+    and printf '%s\n' $t
+    or command stat -c %Y "$argv[1]" 2>/dev/null
 end
 set -g _PWDTINTII_LOADED_MTIME (_pwdtintii_mtime "$_PWDTINTII_PLUGIN_FILE")
 function _pwdtintii_is_stale
