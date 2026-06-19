@@ -53,9 +53,10 @@ oh-my-fish) — use the manual `source` line above.
 
 Open a fresh shell — the tint kicks in on the first prompt.
 
-### Via a plugin manager
+### Via a plugin manager (zsh)
 
-These source the zsh plugin automatically; bash users use the manual `source` line above.
+These source the zsh plugin automatically; bash and fish users use the manual
+`source` line above.
 
 **oh-my-zsh**
 ```zsh
@@ -78,9 +79,10 @@ bmmmm/pwdtintii
 `pt` is the entry point. Run it bare for an fzf menu of the core actions, each
 with a live description in the preview pane; pick one and it runs. The menu loops:
 display-only actions return to it after a keypress (q quits), and ESC steps back
-one level — out of the picker into the menu, out of the menu to the shell. After
-you edit the plugin file, the next `pt` re-sources it automatically — your pinned
-family, shade, and disabled state carry over — and prints a one-line notice, so
+one level — out of the picker into the menu, out of the menu to the shell.
+
+Edit the plugin file and the next `pt` re-sources it automatically — your pinned
+family, shade, and disabled state carry over, and it prints a one-line notice, so
 there is no manual re-source step.
 
 ![pt — the action hub](docs/hub.png)
