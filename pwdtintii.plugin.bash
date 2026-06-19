@@ -331,7 +331,8 @@ pwdtintii_off() {
   unset _PWDTINTII_FORCED_FAMILY _PWDTINTII_PINNED _PWDTINTII_FAMILY \
         _PWDTINTII_SHADE_IDX _PWDTINTII_LAST_PWD _PWDTINTII_LAST_KEY
   _pwdtintii_release
-  unset _PWDTINTII_REG   # release used it; drop the now-stale registry path
+  # Keep _PWDTINTII_REG set: if release left our entry pending on a transient
+  # read error, the exit-time release reuses the path to retry; apply re-sets it.
   if [[ -n "$TMUX" ]]; then
     tmux select-pane -P 'bg=default' 2>/dev/null || true
   else
