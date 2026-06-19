@@ -3,6 +3,17 @@
 All notable changes to pwdtintii will be documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Changed
+- The zsh and bash plugins now share a single core (`lib/pwdtintii.core.sh`)
+  instead of each carrying ~80% of the logic as a parallel copy. Each plugin
+  file is now a thin adapter that resolves its own path, sets four
+  shell-specific shims (array offset, word-split, single-key read, prompt-hook
+  registration), and sources the core. Behaviour is unchanged — the cross-shell
+  `parity.bats` suite pins zsh against bash byte-for-byte — and the fish plugin
+  stays an independent native port. Internal refactor; no user-visible change.
+
 ## [0.5.1] — 2026-06-19
 
 ### Fixed
