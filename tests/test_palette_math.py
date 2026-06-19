@@ -52,6 +52,22 @@ def main():
     # the returned fg is one of the theme's candidates
     assert m.best_fg("#123456", "dark") in m._CAND["dark"]
 
+    # ── read_families: TSV parsing (skips header/comment/blank/short rows) ─────
+    import tempfile
+    with tempfile.NamedTemporaryFile("w", suffix=".tsv", delete=False) as tf:
+        tf.write("family\tshade0\tshade1\tshade2\tshade3\n")    # header  -> skip
+        tf.write("# comment\n")                                 # comment -> skip
+        tf.write("\n")                                          # blank   -> skip
+        tf.write("blue\t#001f70\t#002d8f\t#0a38a8\t#1442c0\n")  # kept
+        tf.write("short\t#001f70\n")                            # <5 cols -> skip
+        tf.write("red\t#701f00\t#8f2d00\t#a8380a\t#c04214")     # no trailing \n -> kept
+        tmp = tf.name
+    fams = m.read_families(tmp)
+    os.unlink(tmp)
+    assert [f for f, _ in fams] == ["blue", "red"], fams
+    assert fams[0] == ("blue", ["#001f70", "#002d8f", "#0a38a8", "#1442c0"]), fams[0]
+    assert len(fams[1][1]) == 4 and fams[1][0] == "red"    # newline-less last row kept
+
     print("palette_math: all unit assertions passed")
 
 

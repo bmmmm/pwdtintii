@@ -21,7 +21,7 @@ reads >=75 body, 60-75 large UI, <45 sub-readable.
 import os
 import sys
 
-from palette_math import wcag_lum_hex as lum, apca_lc, best_fg
+from palette_math import wcag_lum_hex as lum, apca_lc, best_fg, read_families
 
 # ── arg parsing ──────────────────────────────────────────────────────────────
 args = sys.argv[1:]
@@ -67,16 +67,7 @@ def contrast(a, b):
 
 
 # ── load palette ───────────────────────────────────────────────────────────────
-rows = []
-with open(palette) as f:
-    for line in f:
-        parts = line.rstrip('\n').split('\t')
-        if len(parts) < 5:
-            continue
-        fam = parts[0]
-        if fam in ('family', '') or fam.startswith('#'):
-            continue
-        rows.append((fam, parts[1:5]))
+rows = read_families(palette)
 
 if theme == 'auto':
     shades = [h for _, hexes in rows for h in hexes]
