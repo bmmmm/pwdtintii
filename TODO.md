@@ -42,10 +42,11 @@ description preview reflows to `FZF_PREVIEW_COLUMNS` (no `↳` hard-wraps); on a
 terminal too narrow for a side-by-side split the preview stacks below the list.
 User-confirmed on a real terminal.
 
-Remaining live spot-check (the command sandbox has no tty for OSC 11 / fzf): a
-fresh-terminal pass of the release checklist below — the picker ctrl-t flip and
-light-group preview legibility. The flash-free exit is now user-confirmed on a
-real terminal for both `pt pick` and `pt view`. The tmux per-pane
+Remaining live spot-check (the command sandbox has no tty for OSC 11 / fzf): only
+the light-group preview legibility (dark text on the pale swatches) is left of the
+release checklist below. The picker ctrl-t flip and the flash-free exit are now
+user-confirmed on a real terminal for both `pt pick` and `pt view` (the flip
+across all platforms). The tmux per-pane
 tint (only the focused pane tints while `pt pick` / `pt view` is open) is now
 confirmed visually on real tmux 3.6b, on top of the data-layer proof.
 
