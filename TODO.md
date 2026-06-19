@@ -4,10 +4,12 @@ Entry point for picking up work. Read this first, then pick a section.
 
 ## Status
 
-0.5.0 released 2026-06-18 (`v0.5.0` tagged on Forgejo + GitHub; the GitHub
-Release object is still missing — see Open work): `pt version` backed by a
-single-source `VERSION` file, `scripts/release.sh` (release automation), and the
-fzf live-preview tint made per-pane under tmux — on
+0.5.1 released 2026-06-19 (`v0.5.1`): the first tag to clear CI green, so its
+GitHub Release auto-published and is now Latest on GitHub. No shipped-code change
+over 0.5.0 (2026-06-18) — just a side-effect-free `scripts/release.sh` dry-run
+and the CI cross-shell-parity fix that unblocked the release job. 0.5.0 shipped
+`pt version` backed by a single-source `VERSION` file, `scripts/release.sh`
+(release automation), and the fzf live-preview tint made per-pane under tmux — on
 top of 0.4.0 (fish shell support, tmux per-pane tinting, the merged `pt view`
 browser, APCA scores in `pt contrast`, high-contrast fzf menus) and 0.3.0
 (released 2026-06-15: `pt off`, `pt doctor`, a light-terminal palette
@@ -18,13 +20,6 @@ layer (`select-pane -P` sets the focused pane's bg to the computed tone, sibling
 panes independent) and the visual look user-confirmed. Covered by the bats suite
 (`grep -c '^@test' tests/*.bats` for the live count). Still alpha. Dotfiles
 already source the plugin (`~/.zshrc`).
-
-Unreleased since 0.5.0 (see CHANGELOG `[Unreleased]`): `scripts/release.sh` is now
-a real dry-run — a preview (without `--yes`) no longer edits the tracked files in
-place, so the documented dry-run → `--yes` flow works. The dry-run used to mv the
-edits into place, which dirtied the tree and tripped the script's own clean-tree
-precondition on the very `--yes` it pointed you to; it now diffs the proposed
-edits against the current files and writes nothing until `--yes`.
 
 ## Next session — start here
 
@@ -94,19 +89,17 @@ into a mismatch. `kill -0` itself works fine. Fixed by `unsetopt bgnice` in
 - [x] GitHub CI: macOS matrix + release automation ← erledigt 2026-06-14
       - `macos-latest` in the test matrix (BSD awk/`stat -f`/`shasum`, brew bash 4+)
       - Release job on `v*` tags: GitHub Release with the extracted CHANGELOG section
-      - Exercised: `v0.3.0` got a Release; `v0.4.0` + `v0.5.0` tag pushes ran CI
-        on GitHub but it was red, and `release` (`needs: lint-and-test`) was
-        skipped — so no Release object for either
+      - Exercised end-to-end on `v0.5.1`: push → mirror → CI green (ubuntu +
+        macOS) → the `release` job auto-published the GitHub Release from the
+        CHANGELOG section. `v0.3.0` also has a Release; `v0.4.0` + `v0.5.0` do not
+        (their tag CI was red, so `release` (`needs: lint-and-test`) was skipped)
 
-- [ ] GitHub Release for 0.5.0 is missing (only v0.3.0 has one). Mechanism: the
-      v0.4.0 / v0.5.0 tag pushes triggered CI on GitHub, `lint-and-test` failed
-      (the breakage fixed in the `fix(ci)` series since — doctor-parity TERM et
-      al.), and `release` (`needs: lint-and-test`) was skipped. CI is green on
-      HEAD again, so a fresh tag push would now produce a Release. Decide
-      (release = ask-first): cut a **0.5.1** from the current green HEAD (cleanest
-      — there is unreleased work since v0.5.0 anyway), re-point the v0.5.0 tag to
-      a green commit + force-push, or create the Release by hand (`gh release
-      create`).
+- [x] GitHub Release for 0.5.0 resolved via **0.5.1** ← erledigt 2026-06-19.
+      0.5.0's tag CI was red (fixed in the `fix(ci)` series since), so its release
+      job was skipped and no 0.5.0 Release exists. Rather than re-point the tag,
+      cut 0.5.1 from the green HEAD — it carries no shipped-code change over 0.5.0,
+      just the release-tooling + CI-parity fixes. 0.5.1 is now Latest on GitHub.
+      (v0.4.0 stays Release-less — historical, not worth a re-tag.)
 
 ## Open work (medium)
 
