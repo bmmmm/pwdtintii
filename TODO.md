@@ -152,9 +152,11 @@ into a mismatch. `kill -0` itself works fine. Fixed by `unsetopt bgnice` in
 
 ```
 pwdtintii/
-├── pwdtintii.plugin.zsh    # main zsh plugin
-├── pwdtintii.plugin.bash   # main bash plugin (4+)
-├── pwdtintii.plugin.fish   # native fish plugin (3.5+)
+├── pwdtintii.plugin.zsh    # thin zsh adapter (self-path + shims + hooks → core)
+├── pwdtintii.plugin.bash   # thin bash adapter (4+; same shape as the zsh one)
+├── pwdtintii.plugin.fish   # native fish plugin (3.5+; separate language, own port)
+├── lib/
+│   └── pwdtintii.core.sh   # shared zsh+bash core — the ~80% both adapters had identical
 ├── bin/pwdtintii           # CLI companion (fzf preview helper)
 ├── docs/                   # README screenshots (hub.png, picker.png)
 ├── palettes/
