@@ -4,9 +4,10 @@ Entry point for picking up work. Read this first, then pick a section.
 
 ## Status
 
-0.5.0 released 2026-06-18 (`v0.5.0`, tag set locally — the push is the human's
-step): `pt version` backed by a single-source `VERSION` file, `scripts/release.sh`
-(release automation), and the fzf live-preview tint made per-pane under tmux — on
+0.5.0 released 2026-06-18 (`v0.5.0` tagged on Forgejo + GitHub; the GitHub
+Release object is still missing — see Open work): `pt version` backed by a
+single-source `VERSION` file, `scripts/release.sh` (release automation), and the
+fzf live-preview tint made per-pane under tmux — on
 top of 0.4.0 (fish shell support, tmux per-pane tinting, the merged `pt view`
 browser, APCA scores in `pt contrast`, high-contrast fzf menus) and 0.3.0
 (released 2026-06-15: `pt off`, `pt doctor`, a light-terminal palette
@@ -42,13 +43,12 @@ description preview reflows to `FZF_PREVIEW_COLUMNS` (no `↳` hard-wraps); on a
 terminal too narrow for a side-by-side split the preview stacks below the list.
 User-confirmed on a real terminal.
 
-Remaining live spot-check (the command sandbox has no tty for OSC 11 / fzf): only
-the light-group preview legibility (dark text on the pale swatches) is left of the
-release checklist below. The picker ctrl-t flip and the flash-free exit are now
-user-confirmed on a real terminal for both `pt pick` and `pt view` (the flip
-across all platforms). The tmux per-pane
-tint (only the focused pane tints while `pt pick` / `pt view` is open) is now
-confirmed visually on real tmux 3.6b, on top of the data-layer proof.
+The release checklist below is now fully live-verified on a real terminal: the
+picker ctrl-t flip (all platforms), the flash-free exit (both `pt pick` and
+`pt view`), and the light-group preview legibility (dark text on the pale
+swatches). The tmux per-pane tint (only the focused pane tints while `pt pick` /
+`pt view` is open) is confirmed visually on real tmux 3.6b, on top of the
+data-layer proof.
 
 The bats suite is green on a real shell and under the command sandbox alike (use
 `grep -c '^@test' tests/*.bats` for the live count). The `zsh pick_shade skips a
@@ -94,7 +94,19 @@ into a mismatch. `kill -0` itself works fine. Fixed by `unsetopt bgnice` in
 - [x] GitHub CI: macOS matrix + release automation ← erledigt 2026-06-14
       - `macos-latest` in the test matrix (BSD awk/`stat -f`/`shasum`, brew bash 4+)
       - Release job on `v*` tags: GitHub Release with the extracted CHANGELOG section
-      - Untested until first real tag push — `v0.3.0` will be the first exercise
+      - Exercised: `v0.3.0` got a Release; `v0.4.0` + `v0.5.0` tag pushes ran CI
+        on GitHub but it was red, and `release` (`needs: lint-and-test`) was
+        skipped — so no Release object for either
+
+- [ ] GitHub Release for 0.5.0 is missing (only v0.3.0 has one). Mechanism: the
+      v0.4.0 / v0.5.0 tag pushes triggered CI on GitHub, `lint-and-test` failed
+      (the breakage fixed in the `fix(ci)` series since — doctor-parity TERM et
+      al.), and `release` (`needs: lint-and-test`) was skipped. CI is green on
+      HEAD again, so a fresh tag push would now produce a Release. Decide
+      (release = ask-first): cut a **0.5.1** from the current green HEAD (cleanest
+      — there is unreleased work since v0.5.0 anyway), re-point the v0.5.0 tag to
+      a green commit + force-push, or create the Release by hand (`gh release
+      create`).
 
 ## Open work (medium)
 
