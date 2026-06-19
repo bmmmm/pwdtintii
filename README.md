@@ -95,7 +95,7 @@ there is no manual re-source step.
 | `pt list`          | current key / family / shade, plus all families |
 | `pt reload`        | re-read the palette TSV |
 | `pt contrast`      | WCAG + APCA contrast check of every shade |
-| `pt doctor`        | check OSC 11 support, fzf, and the palette |
+| `pt doctor`        | check OSC 11 support, fzf, python3, the palette, and current state |
 | `pt help`          | this overview |
 | `pt version`       | print the installed version |
 

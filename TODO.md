@@ -156,6 +156,7 @@ pwdtintii/
 ├── pwdtintii.plugin.bash   # main bash plugin (4+)
 ├── pwdtintii.plugin.fish   # native fish plugin (3.5+)
 ├── bin/pwdtintii           # CLI companion (fzf preview helper)
+├── docs/                   # README screenshots (hub.png, picker.png)
 ├── palettes/
 │   ├── default.tsv         # 37 families × 4 shades (dark themes)
 │   ├── light.tsv           # pale variant for light themes
@@ -165,6 +166,7 @@ pwdtintii/
 │   ├── contrast.py         # WCAG + APCA engine (dump + --row machine mode)
 │   ├── contrast-check.sh   # WCAG + APCA check wrapper (needs python3)
 │   ├── gen-light-palette.py  # regenerates light.tsv from default.tsv
+│   ├── palette_math.py     # shared WCAG/YIQ/APCA math (used by contrast.py + gen-light-palette.py)
 │   └── release.sh          # version bump + commit + tag automation (dry-run by default)
 ├── tests/                  # bats suite coupling bash + zsh + fish
 │   ├── helper.bash
