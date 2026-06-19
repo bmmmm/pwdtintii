@@ -45,8 +45,14 @@ _pt_detect_hashcmd() {
 
 # Remember the plugin file + its load-time mtime so `pt` can flag a stale shell
 # (file changed on disk after sourcing — re-source or open a new shell to apply).
-# `command stat` forces the external binary, BSD `-f` then GNU `-c` for mtime.
-_pwdtintii_mtime() { command stat -f %m "$1" 2>/dev/null || command stat -c %Y "$1" 2>/dev/null; }
+# `command stat` forces the external binary. BSD stat uses `-f %m` (macOS);
+# GNU stat treats `-f` as --file-system (filesystem mode) and would output
+# changing filesystem stats instead of the mtime — capture first and only
+# print on exit 0, else fall back to GNU `-c %Y`.
+_pwdtintii_mtime() {
+  local t; t=$(command stat -f %m "$1" 2>/dev/null) && printf '%s\n' "$t" \
+    || command stat -c %Y "$1" 2>/dev/null
+}
 _pwdtintii_is_stale() {
   local now; now="$(_pwdtintii_mtime "$_PWDTINTII_PLUGIN_FILE")"
   [[ -n "$now" && -n "$_PWDTINTII_LOADED_MTIME" && "$now" != "$_PWDTINTII_LOADED_MTIME" ]]
