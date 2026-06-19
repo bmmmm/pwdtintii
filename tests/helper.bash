@@ -64,7 +64,7 @@ bash_eval() { # $1=home $2=pwd $3=snippet
     '
 }
 zsh_eval() {
-  TERM="$PT_TERM" PT_REPO="$REPO_ROOT" PT_HOME="$1" PT_PWD="$2" PT_SNIP="$3" PT_PAL="$PWDTINTII_PALETTE" PT_SH="$PWDTINTII_SHADES_DIR" PT_PATH="$PATH" \
+  TERM="$PT_TERM" PT_REPO="$REPO_ROOT" PT_HOME="$1" PT_PWD="$2" PT_SNIP="$3" PT_PAL="$PWDTINTII_PALETTE" PT_SH="$PWDTINTII_SHADES_DIR" \
     "$ZSH_BIN" -c '
       # zsh nices background jobs by default (BG_NICE). The nice() syscall is
       # blocked in a command sandbox, and zsh prints "nice(N) failed" to stderr,
@@ -72,14 +72,6 @@ zsh_eval() {
       # mismatch in the live-PID coordination test. Off here, harness-wide, since
       # job priority is irrelevant to anything these snippets assert.
       unsetopt bgnice 2>/dev/null
-      # /etc/zshenv (macOS path_helper, Linux /etc/zsh/zshenv) can reset PATH
-      # before our snippet runs, causing tool detection (fzf, python3, shasum) to
-      # diverge from bash_eval which inherits the caller'"'"'s PATH unchanged.
-      export PATH="$PT_PATH"
-      # zsh builds its $commands hash at startup from the initial PATH; restoring
-      # PATH via export does not update the hash.  rehash rebuilds it so that
-      # (( $+commands[shasum] )) in the plugin sees the correct PATH.
-      rehash 2>/dev/null || true
       export PWDTINTII_PALETTE="$PT_PAL" PWDTINTII_SHADES_DIR="$PT_SH"
       source "$PT_REPO/pwdtintii.plugin.zsh" 2>/dev/null
       HOME="$PT_HOME"; PWD="$PT_PWD"
