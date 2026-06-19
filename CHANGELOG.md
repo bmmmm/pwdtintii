@@ -3,7 +3,7 @@
 All notable changes to pwdtintii will be documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [0.5.1] — 2026-06-19
 
 ### Fixed
 - `scripts/release.sh` is now a real dry-run: a preview (without `--yes`) no
