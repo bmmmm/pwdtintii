@@ -69,6 +69,10 @@ zsh_eval() {
       # before our snippet runs, causing tool detection (fzf, python3, shasum) to
       # diverge from bash_eval which inherits the caller'"'"'s PATH unchanged.
       export PATH="$PT_PATH"
+      # zsh builds its $commands hash at startup from the initial PATH; restoring
+      # PATH via export does not update the hash.  rehash rebuilds it so that
+      # (( $+commands[shasum] )) in the plugin sees the correct PATH.
+      rehash 2>/dev/null || true
       export PWDTINTII_PALETTE="$PT_PAL" PWDTINTII_SHADES_DIR="$PT_SH"
       source "$PT_REPO/pwdtintii.plugin.zsh" 2>/dev/null
       HOME="$PT_HOME"; PWD="$PT_PWD"
