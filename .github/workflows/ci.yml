@@ -34,6 +34,7 @@ jobs:
           shellcheck -s bash --severity=warning \
             bin/pwdtintii \
             scripts/contrast-check.sh \
+            lib/pwdtintii.core.sh \
             pwdtintii.plugin.bash \
             tests/helper.bash \
             tests/run.sh
