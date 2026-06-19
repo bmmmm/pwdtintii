@@ -12,6 +12,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   header for a second pass) — so the very `--yes` the dry-run pointed you to
   aborted on the script's own clean-tree precondition. The preview now diffs the
   proposed edits against the current files and writes nothing until `--yes`.
+- CI is green on GitHub Actions again: the bash/zsh `doctor` parity test now
+  pins `TERM` (runners leave it unset, where bash defaults to `dumb` and zsh
+  does not), with two runner-only test failures also fixed. (0.5.0's tag CI was
+  red, so its release job was skipped and no 0.5.0 GitHub Release exists — 0.5.1
+  is the first green-CI tag since.)
 
 ## [0.5.0] — 2026-06-18
 
