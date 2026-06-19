@@ -18,7 +18,7 @@ import colorsys
 import os
 import sys
 
-from palette_math import hex_to_rgb, wcag_lum
+from palette_math import hex_to_rgb, wcag_lum, read_families
 
 SELF_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT = os.path.join(SELF_DIR, "..", "palettes", "default.tsv")
@@ -58,20 +58,6 @@ def shade_for(hue, sat, target_lum):
             hi = mid
     r, g, b = colorsys.hls_to_rgb(hue, (lo + hi) / 2, sat)
     return rgb_to_hex(r, g, b)
-
-
-def read_families(path):
-    rows = []
-    with open(path) as f:
-        for line in f:
-            parts = line.rstrip("\n").split("\t")
-            if len(parts) < 5:
-                continue
-            fam = parts[0]
-            if fam in ("family", "") or fam.startswith("#"):
-                continue
-            rows.append((fam, parts[1:5]))
-    return rows
 
 
 def main():

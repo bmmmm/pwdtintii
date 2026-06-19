@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Shared color math for pwdtintii's palette scripts.
 
-The single home for the perceptual math: hex parsing, WCAG 2.x relative
-luminance, integer YIQ, and the APCA SA98G contrast engine. Imported by
+The single home for the shared palette code: hex + palette-TSV parsing, WCAG 2.x
+relative luminance, integer YIQ, and the APCA SA98G contrast engine. Imported by
 contrast.py and gen-light-palette.py; since each is invoked by an absolute path,
 Python puts the scripts/ dir on sys.path[0] and the bare `import palette_math`
-resolves. Pure functions, no import-time side effects, so the math is unit-
-testable directly (tests/test_palette_math.py).
+resolves. No import-time side effects, so it's unit-testable directly
+(tests/test_palette_math.py).
 """
 
 
@@ -15,6 +15,27 @@ def hex_to_rgb(h):
     """#rrggbb (or rrggbb) -> (r, g, b) as 0..1 floats."""
     h = h.lstrip("#")
     return tuple(int(h[i:i + 2], 16) / 255 for i in (0, 2, 4))
+
+
+# ── palette TSV ────────────────────────────────────────────────────────────────
+def read_families(path):
+    """Parse a palette TSV into [(family, [s0, s1, s2, s3]), ...].
+
+    Skips the header row, blank lines, and '#' comments; ignores any row with
+    fewer than five tab fields. A newline-less last row is still captured. Shared
+    by contrast.py and gen-light-palette.py (the shells parse the palette
+    themselves on the prompt hot path — see _pwdtintii_load_palette)."""
+    rows = []
+    with open(path) as f:
+        for line in f:
+            parts = line.rstrip("\n").split("\t")
+            if len(parts) < 5:
+                continue
+            fam = parts[0]
+            if fam in ("family", "") or fam.startswith("#"):
+                continue
+            rows.append((fam, parts[1:5]))
+    return rows
 
 
 # ── WCAG 2.x ──────────────────────────────────────────────────────────────────
