@@ -47,14 +47,15 @@ _init_fixture_repo() {
   ln -sf "${RELEASE_SH}" "${TEST_HOME}/scripts/release.sh"
 
   git -C "${TEST_HOME}" init -q
+  # Set identity in the local repo config so release.sh's own git commit/tag
+  # calls succeed on runners with no global git identity configured.
+  git -C "${TEST_HOME}" config user.email "t@t.t"
+  git -C "${TEST_HOME}" config user.name "T"
   # Ensure we are on 'main' (git default branch may be 'master').
   git -C "${TEST_HOME}" checkout -q -b main 2>/dev/null \
-    || git -C "${TEST_HOME}" -c user.email="t@t.t" -c user.name="T" \
-       checkout -q -B main 2>/dev/null || true
-  git -C "${TEST_HOME}" -c user.email="t@t.t" -c user.name="T" \
-    add CHANGELOG.md README.md VERSION
-  git -C "${TEST_HOME}" -c user.email="t@t.t" -c user.name="T" \
-    commit -q -m "initial commit"
+    || git -C "${TEST_HOME}" checkout -q -B main 2>/dev/null || true
+  git -C "${TEST_HOME}" add CHANGELOG.md README.md VERSION
+  git -C "${TEST_HOME}" commit -q -m "initial commit"
 }
 
 # Shorthand: run the symlinked script (so REPO_ROOT = TEST_HOME).
