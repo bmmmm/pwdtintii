@@ -45,10 +45,17 @@ need_zsh()  { [[ -n "$ZSH_BIN" ]] || skip "no zsh available"; }
 need_fish() { [[ -n "$FISH_BIN" ]] || skip "no fish available"; }
 need_both() { need_bash; need_zsh; }
 
+# Pin TERM identically for both shells. With TERM unset in the environment (the
+# case on CI runners), bash defaults it to "dumb" at startup while zsh leaves it
+# unset — so `pwdtintii doctor`'s "terminal: TERM=..." line would diverge between
+# the two even though the plugins are byte-identical. A fixed value makes the
+# parity comparison independent of the caller's TERM (locally it is usually set).
+PT_TERM=dumb
+
 # Run a snippet with the bash plugin sourced. Snippet references $HOME/$PWD and
 # plugin functions; passed verbatim (single-quote it at the call site).
 bash_eval() { # $1=home $2=pwd $3=snippet
-  PT_REPO="$REPO_ROOT" PT_HOME="$1" PT_PWD="$2" PT_SNIP="$3" PT_PAL="$PWDTINTII_PALETTE" PT_SH="$PWDTINTII_SHADES_DIR" \
+  TERM="$PT_TERM" PT_REPO="$REPO_ROOT" PT_HOME="$1" PT_PWD="$2" PT_SNIP="$3" PT_PAL="$PWDTINTII_PALETTE" PT_SH="$PWDTINTII_SHADES_DIR" \
     "$BASH4" -c '
       export PWDTINTII_PALETTE="$PT_PAL" PWDTINTII_SHADES_DIR="$PT_SH"
       source "$PT_REPO/pwdtintii.plugin.bash" 2>/dev/null
@@ -57,7 +64,7 @@ bash_eval() { # $1=home $2=pwd $3=snippet
     '
 }
 zsh_eval() {
-  PT_REPO="$REPO_ROOT" PT_HOME="$1" PT_PWD="$2" PT_SNIP="$3" PT_PAL="$PWDTINTII_PALETTE" PT_SH="$PWDTINTII_SHADES_DIR" PT_PATH="$PATH" \
+  TERM="$PT_TERM" PT_REPO="$REPO_ROOT" PT_HOME="$1" PT_PWD="$2" PT_SNIP="$3" PT_PAL="$PWDTINTII_PALETTE" PT_SH="$PWDTINTII_SHADES_DIR" PT_PATH="$PATH" \
     "$ZSH_BIN" -c '
       # zsh nices background jobs by default (BG_NICE). The nice() syscall is
       # blocked in a command sandbox, and zsh prints "nice(N) failed" to stderr,
