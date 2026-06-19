@@ -91,15 +91,18 @@ into a mismatch. `kill -0` itself works fine. Fixed by `unsetopt bgnice` in
       - Release job on `v*` tags: GitHub Release with the extracted CHANGELOG section
       - Exercised end-to-end on `v0.5.1`: push → mirror → CI green (ubuntu +
         macOS) → the `release` job auto-published the GitHub Release from the
-        CHANGELOG section. `v0.3.0` also has a Release; `v0.4.0` + `v0.5.0` do not
-        (their tag CI was red, so `release` (`needs: lint-and-test`) was skipped)
+        CHANGELOG section. The older tags (`v0.1.0`–`v0.4.0`) have Releases too,
+        backfilled by hand from their CHANGELOG sections (their tag CI predates the
+        parity fix); `v0.5.0` is the sole gap, superseded by 0.5.1
 
 - [x] GitHub Release for 0.5.0 resolved via **0.5.1** ← erledigt 2026-06-19.
       0.5.0's tag CI was red (fixed in the `fix(ci)` series since), so its release
       job was skipped and no 0.5.0 Release exists. Rather than re-point the tag,
       cut 0.5.1 from the green HEAD — it carries no shipped-code change over 0.5.0,
       just the release-tooling + CI-parity fixes. 0.5.1 is now Latest on GitHub.
-      (v0.4.0 stays Release-less — historical, not worth a re-tag.)
+      Every other version tag now carries a backfilled Release (v0.1.0–v0.4.0,
+      created by hand from their CHANGELOG sections); v0.5.0 is the one deliberate
+      gap, superseded by 0.5.1 (identical code).
 
 ## Open work (medium)
 
