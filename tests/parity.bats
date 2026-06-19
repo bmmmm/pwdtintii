@@ -118,7 +118,14 @@ teardown() { teardown_sandbox; }
 # them byte-for-byte: this makes maintaining two native files provably safe and
 # is the baseline the echo->printf collapse must preserve.
 @test "doctor output is identical in bash and zsh (off-tty)" {
-  [ "$(bash_eval /testhome /testhome/proj 'pwdtintii doctor')" = "$(zsh_eval /testhome /testhome/proj 'pwdtintii doctor')" ]
+  local b z
+  b="$(bash_eval /testhome /testhome/proj 'pwdtintii doctor')"
+  z="$(zsh_eval  /testhome /testhome/proj 'pwdtintii doctor')"
+  if [[ "$b" != "$z" ]]; then
+    { printf -- '--- bash\n%s\n--- zsh\n%s\n--- diff (bash vs zsh)\n' "$b" "$z"
+      diff <(printf '%s\n' "$b") <(printf '%s\n' "$z") || true; } >&2
+    return 1
+  fi
 }
 
 @test "list output is identical in bash and zsh" {
