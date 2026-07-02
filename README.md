@@ -1,5 +1,9 @@
 # pwdtintii
 
+[![CI](https://github.com/bmmmm/pwdtintii/actions/workflows/ci.yml/badge.svg)](https://github.com/bmmmm/pwdtintii/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/bmmmm/pwdtintii)](https://github.com/bmmmm/pwdtintii/releases)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+
 **Directory-derived terminal background tinting.** `cd` into a directory and the
 background shifts to a color derived from it; every split/pane in the same dir
 gets a distinct shade. Deterministic, no daemon, no persisted state,
@@ -73,6 +77,12 @@ zinit light bmmmm/pwdtintii
 ```
 bmmmm/pwdtintii
 ```
+
+### Uninstall
+
+Run `pt off` (resets the terminal background), remove the `source` line or
+plugin-manager entry from your shell config, and delete the clone. The only
+runtime state is `~/.config/pwdtintii/shades` — remove that too.
 
 ## Usage
 
