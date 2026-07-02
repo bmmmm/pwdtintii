@@ -160,7 +160,15 @@ macOS `/bin/bash` is 3.2 — point the suite at a newer one with
 `zsh -n`, `fish -n`, and bats on every push.
 
 The README demo is rendered from [`docs/demo.tape`](docs/demo.tape) with
-[vhs](https://github.com/charmbracelet/vhs): `vhs docs/demo.tape`.
+[vhs](https://github.com/charmbracelet/vhs):
+
+```sh
+brew install vhs    # pulls in ttyd and ffmpeg as dependencies
+vhs docs/demo.tape  # re-renders docs/demo.gif (run from the repo root)
+```
+
+vhs drives a real headless terminal (ttyd + xterm.js), which renders the OSC 11
+background changes the demo is about — a plain asciinema/agg pipeline does not.
 
 ## License
 
