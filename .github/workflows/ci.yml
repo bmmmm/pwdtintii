@@ -13,9 +13,10 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      # checkout@v4 (node20), not v5: the act-based Forgejo runner that also
-      # runs this workflow has no node24 runtime, which checkout@v5 requires.
-      - uses: actions/checkout@v4
+      # checkout@v7 (node24). The Forgejo mirror runner that also runs this
+      # workflow now provides node24 via its custom ubuntu-ci:local image, so
+      # the old v4/node20 pin (act runner had no node24 runtime) is lifted.
+      - uses: actions/checkout@v7
 
       - name: Install tools (Linux)
         if: runner.os == 'Linux'
@@ -63,7 +64,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Extract changelog for tag
         id: changelog
