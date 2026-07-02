@@ -697,24 +697,29 @@ function _pwdtintii_help
     printf '%s\n' "  aliases: ptpick · ptlist · ptreload · ptview · ptcontrast"
 end
 
-# ── Hooks ────────────────────────────────────────────────────────────────────
-# Preserve $status around the tint emit so a prompt reading the last command's
-# exit status sees it, not pwdtintii_apply's — the same load-bearing guard as the
-# bash/zsh precmd (without it the handler hands the prompt apply's status, not the
-# user's last command's).
-function _pwdtintii_precmd --on-event fish_prompt
-    set -l __pt_rc $status
-    pwdtintii_apply
-    return $__pt_rc
-end
+# ── Hooks + Boot ─────────────────────────────────────────────────────────────
+# Guarded on the hash command like the bash/zsh `_pt_boot || return`: without
+# shasum/sha1sum no key can ever be computed, and a registered prompt hook would
+# error on the empty $_PWDTINTII_HASHCMD command at every prompt. The load-time
+# detect above already printed the loud failure; here we just stay inert.
+if set -q _PWDTINTII_HASHCMD
+    # Preserve $status around the tint emit so a prompt reading the last command's
+    # exit status sees it, not pwdtintii_apply's — the same load-bearing guard as
+    # the bash/zsh precmd (without it the handler hands the prompt apply's status,
+    # not the user's last command's).
+    function _pwdtintii_precmd --on-event fish_prompt
+        set -l __pt_rc $status
+        pwdtintii_apply
+        return $__pt_rc
+    end
 
-function _pwdtintii_release_hook --on-event fish_exit
-    _pwdtintii_release
-end
+    function _pwdtintii_release_hook --on-event fish_exit
+        _pwdtintii_release
+    end
 
-# ── Boot ─────────────────────────────────────────────────────────────────────
-_pwdtintii_load_palette
-_pwdtintii_load_overrides
-if test (count $_pwdtintii_families) -eq 0
-    printf '%s\n' "pwdtintii: palette '$PWDTINTII_PALETTE' has no families — tinting disabled" >&2
+    _pwdtintii_load_palette
+    _pwdtintii_load_overrides
+    if test (count $_pwdtintii_families) -eq 0
+        printf '%s\n' "pwdtintii: palette '$PWDTINTII_PALETTE' has no families — tinting disabled" >&2
+    end
 end
