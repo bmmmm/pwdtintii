@@ -159,12 +159,10 @@ end
 # ── Shade picker: per-key registry, PID-GC, mkdir-locked read-modify-write ───
 # Bit-compatible with the bash/zsh registry format (pid<TAB>shade<TAB>ts) so a
 # fish shell and a zsh/bash shell in the same dir share one registry and get
-# distinct shades. Takes the precomputed keyhash as $3 so the prompt hot-path can
-# cache it.
+# distinct shades. Takes the precomputed keyhash (the prompt hot-path caches it);
+# the key itself is not needed — the registry file is named by the hash alone.
 function _pwdtintii_pick_shade
-    set -l key $argv[1]
-    set -l forced $argv[2]
-    set -l keyhash $argv[3]
+    set -l keyhash $argv[1]
     set -l my_pid $fish_pid
     set -l reg "$PWDTINTII_SHADES_DIR/$keyhash.tsv"
     set -l lock "$reg.lock"
@@ -213,16 +211,11 @@ function _pwdtintii_pick_shade
             printf '%s\t%s\t%s\n' $pid $sh $ts >>"$reg.new"
         end <"$reg"
     end
-    set -l pick
-    if test -n "$forced"
-        set pick $forced
-    else
-        set pick 0
-        for p in 0 1 2 3
-            if not contains -- $p $in_use
-                set pick $p
-                break
-            end
+    set -l pick 0
+    for p in 0 1 2 3
+        if not contains -- $p $in_use
+            set pick $p
+            break
         end
     end
     printf '%s\t%s\t%s\n' $my_pid $pick (date +%s) >>"$reg.new"
@@ -289,7 +282,7 @@ function pwdtintii_apply
     if test "$_PWDTINTII_PINNED" != "$key"; or test -n "$_PWDTINTII_FORCE_REAPPLY"
         _pwdtintii_release
         set -l keyhash (printf '%s' $key | $_PWDTINTII_HASHCMD | cut -c1-12)
-        set shade_idx (_pwdtintii_pick_shade $key "" $keyhash)
+        set shade_idx (_pwdtintii_pick_shade $keyhash)
         set -g _PWDTINTII_PINNED $key
         set -g _PWDTINTII_SHADE_IDX $shade_idx
         test -z "$family"; and set family (_pwdtintii_family_for $key)

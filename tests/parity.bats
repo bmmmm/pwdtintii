@@ -257,7 +257,7 @@ teardown() { teardown_sandbox; }
   mkdir -p "$PWDTINTII_SHADES_DIR"
   sleep 30 & live=$!
   printf '%s\t0\t1\n' "$live" > "$PWDTINTII_SHADES_DIR/$h.tsv"
-  run bash_eval /testhome / '_pwdtintii_pick_shade "'"$key"'" "" "'"$h"'"'
+  run bash_eval /testhome / '_pwdtintii_pick_shade "'"$h"'"'
   kill "$live" 2>/dev/null
   [ "$output" = "1" ]
 }
@@ -269,7 +269,7 @@ teardown() { teardown_sandbox; }
     mkdir -p "$PWDTINTII_SHADES_DIR"
     sleep 30 & live=$!
     printf "%s\t0\t1\n" "$live" > "$PWDTINTII_SHADES_DIR/zz.tsv"
-    _pwdtintii_pick_shade "k" "" "zz"
+    _pwdtintii_pick_shade "zz"
     kill "$live" 2>/dev/null
   '
   [ "$output" = "1" ]
@@ -279,7 +279,7 @@ teardown() { teardown_sandbox; }
   run zsh_eval / / '
     mkdir -p "$PWDTINTII_SHADES_DIR"
     printf "999999\t0\t1\n" > "$PWDTINTII_SHADES_DIR/zz.tsv"
-    _pwdtintii_pick_shade "k" "" "zz"
+    _pwdtintii_pick_shade "zz"
   '
   [ "$output" = "0" ]
 }
