@@ -314,3 +314,24 @@ teardown() { teardown_sandbox; }
   local dump; dump=$(printf '%s' "$out" | od -An -tx1 | tr -d ' \n')
   [[ "$dump" != *"1b5d3131"* ]]
 }
+
+# Without shasum/sha1sum no key can ever be computed. bash/zsh skip hook
+# registration via `_pt_boot || return`; the fish port must stay inert the same
+# way — a registered fish_prompt hook would error on the empty $_PWDTINTII_HASHCMD
+# command at EVERY prompt. Sourced under a stub PATH holding only what the plugin
+# itself execs (stat for the mtime capture); everything else fish needs here is a
+# builtin.
+@test "fish: missing hash command skips hook registration (stays inert)" {
+  local stub="$TEST_HOME/stub_bin"
+  mkdir -p "$stub" "$TEST_HOME/.local/share/fish" "$TEST_HOME/.config/fish"
+  ln -s "$(command -v stat)" "$stub/stat"
+  run env -i PT_REPO="$REPO_ROOT" PATH="$stub" HOME="$TEST_HOME" TERM="$PT_TERM" \
+    XDG_DATA_HOME="$TEST_HOME/.local/share" XDG_CONFIG_HOME="$TEST_HOME/.config" \
+    "$FISH_BIN" -c '
+      source "$PT_REPO/pwdtintii.plugin.fish"
+      functions -q _pwdtintii_precmd; and echo hook-registered; or echo hook-skipped
+      pwdtintii_apply 2>&1; echo "apply-rc=$status"'
+  [[ "$output" == *"needs 'shasum' or 'sha1sum'"* ]]   # loud load-time failure
+  [[ "$output" == *"hook-skipped"* ]]                  # no per-prompt error source
+  [[ "$output" == *"apply-rc=0"* ]]                    # direct apply no-ops cleanly
+}
