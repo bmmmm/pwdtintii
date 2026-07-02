@@ -14,6 +14,17 @@ teardown() { teardown_sandbox; }
   [ "$output" = "$TEST_HOME/work/myrepo" ]
 }
 
+# In a git worktree (or submodule) .git is a FILE — a "gitdir: <path>" pointer,
+# not a directory. The walk must treat it as a repo root all the same, or the
+# worktree falls back to the ~/<top> key and loses its repo color.
+@test "worktree root (.git file) wins over first-component key" {
+  mkdir -p "$TEST_HOME/work/mytree/src"
+  printf 'gitdir: /somewhere/.git/worktrees/mytree\n' > "$TEST_HOME/work/mytree/.git"
+  run bash_eval "$TEST_HOME" "$TEST_HOME/work/mytree/src" '_pwdtintii_default_key'
+  [ "$status" -eq 0 ]
+  [ "$output" = "$TEST_HOME/work/mytree" ]
+}
+
 @test "override file beats the hash" {
   printf 'myrepo\twine\n' > "$TEST_HOME/ov.tsv"
   export PWDTINTII_OVERRIDES_FILE="$TEST_HOME/ov.tsv"

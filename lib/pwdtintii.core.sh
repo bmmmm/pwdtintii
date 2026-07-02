@@ -120,7 +120,9 @@ _pwdtintii_set_palette() {
 _pwdtintii_default_key() {
   local dir="$PWD"
   while [[ "$dir" != "/" && "$dir" != "$HOME" ]]; do
-    [[ -d "$dir/.git" ]] && { printf '%s\n' "$dir"; return; }
+    # -e, not -d: in a worktree or submodule .git is a *file* (a gitdir pointer),
+    # and -d would skip it — the worktree then keys on ~/<top> and loses its color.
+    [[ -e "$dir/.git" ]] && { printf '%s\n' "$dir"; return; }
     dir="${dir%/*}"
     [[ -z "$dir" ]] && dir="/"
   done

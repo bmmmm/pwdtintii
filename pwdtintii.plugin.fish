@@ -119,7 +119,9 @@ end
 function _pwdtintii_default_key
     set -l dir $PWD
     while test "$dir" != "/"; and test "$dir" != "$HOME"
-        if test -d "$dir/.git"
+        # -e, not -d: in a worktree or submodule .git is a *file* (a gitdir
+        # pointer), and -d would skip it — the worktree loses its repo color.
+        if test -e "$dir/.git"
             printf '%s\n' $dir
             return
         end
