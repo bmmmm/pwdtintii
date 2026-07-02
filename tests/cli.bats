@@ -157,15 +157,22 @@ teardown() { teardown_sandbox; }
   [ "$status" -eq 0 ]   # the bad cell short-circuits _pt_focus_tone, no abort
 }
 
-@test "actions lists the seven hub actions, machine name in field 1" {
+@test "actions lists the eight hub actions, machine name in field 1" {
   run "$CLI" actions
   [ "$status" -eq 0 ]
   local rows; rows=$(printf '%s\n' "$output" | wc -l | tr -d ' ')
-  [ "$rows" -eq 7 ]
+  [ "$rows" -eq 8 ]
   # Field 1 (tab-delimited) is the machine name the shell dispatcher re-runs;
   # pin the catalog so any add/remove forces a deliberate test update.
   local names; names=$(printf '%s\n' "$output" | cut -f1 | tr '\n' ' ')
-  [ "$names" = "pick view list auto off reload contrast " ]
+  [ "$names" = "pick view list auto off reload contrast doctor " ]
+}
+
+@test "describe-action renders the doctor action" {
+  run env FZF_PREVIEW_COLUMNS=80 "$CLI" describe-action doctor
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"diagnose the setup"* ]]
+  [[ "$output" == *"pt doctor"* ]]
 }
 
 @test "describe-action renders a known action" {
