@@ -85,6 +85,18 @@ into a mismatch. `kill -0` itself works fine. Fixed by `unsetopt bgnice` in
 
 ## Open work (small)
 
+- [ ] Drop the unused `ts` field from the shade-registry rows (written by all
+      three shells, read by none; costs a `date` fork per key change). Needs a
+      coordinated format step: readers must tolerate old 3-field rows
+      (`read pid sh _`) before writers stop emitting the third column — the
+      registry is shared across shells and plugin versions.
+- [ ] GC orphaned registry files: `~/.config/pwdtintii/shades/*.tsv` for keys
+      never revisited keep dead-PID rows forever (per-key GC only runs on a
+      pick for that same key). A cheap sweep at boot or in `pt doctor` would do.
+- [ ] Nice-to-have: extend `docs/demo.tape` with a split/second-shell moment so
+      the GIF also shows the distinct-shade-per-pane promise (needs tmux inside
+      the vhs terminal — verify `select-pane -P` renders there first).
+
 - [x] GitHub public mirror — live at github.com/bmmmm/pwdtintii (one-way Forgejo→GitHub, 8h + on-commit) ← erledigt 2026-06-14
 - [x] GitHub CI: macOS matrix + release automation ← erledigt 2026-06-14
       - `macos-latest` in the test matrix (BSD awk/`stat -f`/`shasum`, brew bash 4+)
