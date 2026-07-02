@@ -45,6 +45,20 @@ teardown() { teardown_sandbox; }
   [ "$b" = "$f" ]
 }
 
+# Worktree/submodule: .git is a FILE (gitdir pointer), and both ports must still
+# key on it (test -e, not -d) — and agree, or the same worktree tints differently
+# per shell.
+@test "fish default_key matches bash on a worktree root (.git file)" {
+  need_bash
+  mkdir -p "$TEST_HOME/tree/sub"
+  printf 'gitdir: /somewhere/.git/worktrees/tree\n' > "$TEST_HOME/tree/.git"
+  local b f
+  b="$(bash_eval "$TEST_HOME" "$TEST_HOME/tree/sub" '_pwdtintii_default_key')"
+  f="$(fish_eval 'set -g HOME "'"$TEST_HOME"'"; cd "'"$TEST_HOME"'/tree/sub"; _pwdtintii_default_key')"
+  [ "$b" = "$TEST_HOME/tree" ]
+  [ "$b" = "$f" ]
+}
+
 @test "fish registry keyhash matches bash" {
   need_bash
   local key="/testhome/projects/app"
