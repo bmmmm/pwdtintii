@@ -628,7 +628,7 @@ _pwdtintii_hub() {
   while action=$(_pwdtintii_menu_pick); [[ -n "$action" ]]; do
     pwdtintii "$action"
     case "$action" in
-      list|contrast) _pwdtintii_pause || break ;;
+      list|contrast|doctor) _pwdtintii_pause || break ;;
     esac
   done
 }

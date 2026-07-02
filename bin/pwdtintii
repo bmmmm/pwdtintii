@@ -747,7 +747,8 @@ cmd_actions() {
     auto     'auto'     'back to directory-auto (unpin)' \
     off      'off'      'stop tinting, reset background' \
     reload   'reload'   're-read the palette from disk' \
-    contrast 'contrast' 'WCAG + APCA contrast of all shades'
+    contrast 'contrast' 'WCAG + APCA contrast of all shades' \
+    doctor   'doctor'   'diagnose OSC 11 / fzf / palette'
 }
 
 # Word-wrap stdin to W columns, preserving blank lines (paragraph breaks) and
@@ -813,6 +814,10 @@ cmd_describe_action() {
         printf '%s\n\n' 'contrast — WCAG + APCA contrast'
         printf '%s\n\n' 'Scores each shade against the theme text in both WCAG ratios and APCA Lc, and flags the unreadable combos.'
         printf '%s\n' 'Direct: pt contrast   ·   alias: ptcontrast' ;;
+      doctor)
+        printf '%s\n\n' 'doctor — diagnose the setup'
+        printf '%s\n\n' 'Checks the moving parts — hash command, fzf, python3, the loaded palette, current state — and probes the terminal for OSC 11 support live (a terminal that ignores OSC 11 is the main silent-failure mode).'
+        printf '%s\n' 'Direct: pt doctor   (also: pt diag)' ;;
       *)
         printf '%s\n\n%s\n' "${1:-}" '(no description)' ;;
     esac

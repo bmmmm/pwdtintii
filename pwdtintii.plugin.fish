@@ -649,7 +649,7 @@ function _pwdtintii_hub
         test -n "$action"; or break
         pwdtintii $action
         switch "$action"
-            case list contrast
+            case list contrast doctor
                 _pwdtintii_pause; or break
         end
     end
