@@ -11,7 +11,7 @@ terminal-agnostic via OSC 11.
 
 Status: 0.5.1 · alpha · zsh + bash 4+ + fish 3.5+
 
-![pt pick — live family picker with per-shade preview](docs/picker.png)
+![cd between repos — each one tints the terminal background its own color](docs/demo.gif)
 
 ## Why
 
@@ -111,6 +111,8 @@ there is no manual re-source step.
 | `pt help`          | this overview |
 | `pt version`       | print the installed version |
 
+![pt pick — live family picker with per-shade preview](docs/picker.png)
+
 Short aliases stay as direct accelerators: `ptpick ptlist ptreload ptview
 ptcontrast`. Most commands also map to a `pwdtintii_*` function (e.g.
 `pwdtintii_pick`, `pwdtintii_list`) callable without the aliases. The dispatcher
@@ -156,6 +158,9 @@ tests/run.sh        # bats suite; bash, zsh, and fish kept behaviourally in lock
 macOS `/bin/bash` is 3.2 — point the suite at a newer one with
 `PWDTINTII_TEST_BASH=/opt/homebrew/bin/bash tests/run.sh`. CI runs shellcheck,
 `zsh -n`, `fish -n`, and bats on every push.
+
+The README demo is rendered from [`docs/demo.tape`](docs/demo.tape) with
+[vhs](https://github.com/charmbracelet/vhs): `vhs docs/demo.tape`.
 
 ## License
 

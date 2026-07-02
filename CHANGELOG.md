@@ -10,7 +10,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   one action missing from the menu, and it is the most useful one when tinting
   silently does nothing. Display-only: it pauses before the menu redraws, like
   `list` and `contrast`.
-- README: CI / release / license badges and an Uninstall section.
+- README: CI / release / license badges, an Uninstall section, and an
+  above-the-fold demo GIF (`docs/demo.gif`, rendered from `docs/demo.tape`
+  with vhs — regenerate via `vhs docs/demo.tape`).
 
 ### Fixed
 - **Git worktrees and submodules now get their repo color.** In both, `.git`
