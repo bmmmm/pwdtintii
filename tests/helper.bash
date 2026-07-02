@@ -6,14 +6,16 @@
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# Locate a bash >= 4 (plugins need associative arrays).
+# Locate a bash >= 4 (plugins need associative arrays). Emit the *resolved*
+# absolute path (command -v), never the bare candidate name: a test that runs
+# the interpreter under `env -i` with a stubbed PATH can only find it by path.
 _pwdtintii_find_bash4() {
-  local c v
+  local c p v
   for c in "${PWDTINTII_TEST_BASH:-}" /opt/homebrew/bin/bash /usr/local/bin/bash bash; do
     [[ -n "$c" ]] || continue
-    command -v "$c" >/dev/null 2>&1 || continue
-    v="$("$c" -c 'echo ${BASH_VERSINFO[0]}' 2>/dev/null)"
-    [[ -n "$v" && "$v" -ge 4 ]] && { printf '%s\n' "$c"; return 0; }
+    p="$(command -v "$c" 2>/dev/null)" || continue
+    v="$("$p" -c 'echo ${BASH_VERSINFO[0]}' 2>/dev/null)"
+    [[ -n "$v" && "$v" -ge 4 ]] && { printf '%s\n' "$p"; return 0; }
   done
   return 1
 }
@@ -21,12 +23,15 @@ BASH4="$(_pwdtintii_find_bash4 || true)"
 ZSH_BIN="$(command -v zsh 2>/dev/null || true)"
 
 # fish 3.4+ (path resolve, --on-event fish_exit). Honour PWDTINTII_TEST_FISH like
-# the bash override, then the usual brew / PATH locations.
+# the bash override, then the usual brew / PATH locations. Emit the *resolved*
+# absolute path (command -v), never the bare candidate name: the inert-boot test
+# runs "$FISH_BIN" under `env -i` with a stubbed PATH (only `stat`), so a bare
+# `fish` there resolves to nothing and env exits 127 before the plugin loads.
 _pwdtintii_find_fish() {
-  local c
+  local c p
   for c in "${PWDTINTII_TEST_FISH:-}" /opt/homebrew/bin/fish /usr/local/bin/fish fish; do
     [[ -n "$c" ]] || continue
-    command -v "$c" >/dev/null 2>&1 && { printf '%s\n' "$c"; return 0; }
+    p="$(command -v "$c" 2>/dev/null)" && { printf '%s\n' "$p"; return 0; }
   done
   return 1
 }
