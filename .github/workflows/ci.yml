@@ -13,9 +13,10 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      # checkout@v7 (node24). The Forgejo mirror runner that also runs this
-      # workflow now provides node24 via its custom ubuntu-ci:local image, so
-      # the old v4/node20 pin (act runner had no node24 runtime) is lifted.
+      # checkout@v7 (node24). GitHub-hosted runners have node24; the Forgejo
+      # runner's ubuntu-latest label maps to a custom ubuntu-ci:local image
+      # (node24). So the old v4/node20 pin — added when the act runner had no
+      # node24 runtime — is no longer needed.
       - uses: actions/checkout@v7
 
       - name: Install tools (Linux)
