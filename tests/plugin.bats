@@ -124,7 +124,7 @@ teardown() { teardown_sandbox; }
     mkdir -p "$PWDTINTII_SHADES_DIR"
     sleep 30 & live=$!
     printf "%s\t0\t1\n" "$live" > "$PWDTINTII_SHADES_DIR/hh.tsv"
-    _pwdtintii_pick_shade "k" "" "hh"
+    _pwdtintii_pick_shade "hh"
     kill "$live" 2>/dev/null
   '
   [ "$output" = "1" ]
@@ -134,14 +134,14 @@ teardown() { teardown_sandbox; }
   run bash_eval / / '
     mkdir -p "$PWDTINTII_SHADES_DIR"
     printf "999999\t0\t1\n" > "$PWDTINTII_SHADES_DIR/hh.tsv"
-    _pwdtintii_pick_shade "k" "" "hh"
+    _pwdtintii_pick_shade "hh"
   '
   [ "$output" = "0" ]
 }
 
 @test "pick_shade leaves no stale lock dir behind" {
   run bash_eval / / '
-    _pwdtintii_pick_shade "k" "" "hh" >/dev/null
+    _pwdtintii_pick_shade "hh" >/dev/null
     [[ -e "$PWDTINTII_SHADES_DIR/hh.tsv.lock" ]] && echo LOCKED || echo CLEAN
   '
   [ "$output" = "CLEAN" ]

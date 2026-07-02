@@ -152,9 +152,10 @@ _pwdtintii_family_for() {
 }
 
 # ── Shade picker: per-key registry, PID-GC, mkdir-locked read-modify-write ───
-# Takes the precomputed keyhash as $3 so the prompt hot-path can cache it.
+# Takes the precomputed keyhash (the prompt hot-path caches it); the key itself
+# is not needed — the registry file is named by the hash alone.
 _pwdtintii_pick_shade() {
-  local key="$1" forced="${2:-}" keyhash="$3" my_pid=$$
+  local keyhash="$1" my_pid=$$
   local reg="${PWDTINTII_SHADES_DIR}/${keyhash}.tsv"
   local lock="${reg}.lock"
   mkdir -p "$PWDTINTII_SHADES_DIR"
@@ -195,13 +196,8 @@ _pwdtintii_pick_shade() {
       printf '%s\t%s\t%s\n' "$pid" "$sh" "$ts" >> "${reg}.new"
     done < "$reg"
   fi
-  local pick
-  if [[ -n "$forced" ]]; then
-    pick="$forced"
-  else
-    pick=0
-    for pick in 0 1 2 3; do [[ -z "${in_use[$pick]:-}" ]] && break; done
-  fi
+  local pick=0
+  for pick in 0 1 2 3; do [[ -z "${in_use[$pick]:-}" ]] && break; done
   printf '%s\t%s\t%s\n' "$my_pid" "$pick" "$(date +%s)" >> "${reg}.new"
   mv "${reg}.new" "$reg"
   [[ -n "$locked" ]] && { rm -f "$lock/pid" 2>/dev/null; rmdir "$lock" 2>/dev/null; }
@@ -264,7 +260,7 @@ pwdtintii_apply() {
     _pwdtintii_release
     local keyhash
     keyhash=$(printf '%s' "$key" | "$_PWDTINTII_HASHCMD" | cut -c1-12)
-    shade_idx=$(_pwdtintii_pick_shade "$key" "" "$keyhash")
+    shade_idx=$(_pwdtintii_pick_shade "$keyhash")
     _PWDTINTII_PINNED="$key"
     _PWDTINTII_SHADE_IDX="$shade_idx"
     [[ -z "${family:-}" ]] && family=$(_pwdtintii_family_for "$key")
