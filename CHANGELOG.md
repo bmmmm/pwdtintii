@@ -5,7 +5,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- The `pt` hub menu now offers **doctor** — the diagnostic entry point was the
+  one action missing from the menu, and it is the most useful one when tinting
+  silently does nothing. Display-only: it pauses before the menu redraws, like
+  `list` and `contrast`.
+- README: CI / release / license badges and an Uninstall section.
+
+### Fixed
+- **Git worktrees and submodules now get their repo color.** In both, `.git`
+  is a gitdir-pointer *file*, and the key walk's `-d` test skipped it — the
+  worktree fell back to the `~/<top>` key. The walk now tests `-e`, in the
+  shared core and the fish port alike.
+- **fish stays inert without a hash command**, matching bash/zsh: when neither
+  `shasum` nor `sha1sum` is on PATH, the fish plugin used to register its
+  prompt hook anyway and then errored on every prompt; now it prints the same
+  loud load-time failure and skips hook registration.
+
 ### Changed
+- `_pwdtintii_pick_shade` takes just the precomputed keyhash now: the `key` and
+  `forced` parameters were dead weight (the registry file is named by the hash
+  alone, and no caller ever forced a shade).
 - The zsh and bash plugins now share a single core (`lib/pwdtintii.core.sh`)
   instead of each carrying ~80% of the logic as a parallel copy. Each plugin
   file is now a thin adapter that resolves its own path, sets four
