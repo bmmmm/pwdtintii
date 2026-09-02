@@ -12,6 +12,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     steps:
       # checkout@v7 (node24). GitHub-hosted runners have node24; the Forgejo
       # runner's ubuntu-latest label maps to a custom ubuntu-ci:local image
@@ -62,6 +63,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v') && github.server_url == 'https://github.com'
     needs: lint-and-test
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: write
     steps:
