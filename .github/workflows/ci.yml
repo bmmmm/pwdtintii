@@ -18,7 +18,7 @@ jobs:
       # runner's ubuntu-latest label maps to a custom ubuntu-ci:local image
       # (node24). So the old v4/node20 pin — added when the act runner had no
       # node24 runtime — is no longer needed.
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install tools (Linux)
         if: runner.os == 'Linux'
@@ -67,7 +67,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Extract changelog for tag
         id: changelog
