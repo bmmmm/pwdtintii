@@ -1,0 +1,12 @@
+tmp/
+*.bak
+*.swp
+*~
+.DS_Store
+
+# Python bytecode from the palette/contrast scripts — don't rely on a global ignore
+__pycache__/
+*.pyc
+
+# Local agent/editor state — never publish (relies on no global ignore)
+.claude/

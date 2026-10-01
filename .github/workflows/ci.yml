@@ -1,0 +1,96 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+
+jobs:
+  lint-and-test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      # checkout@v7 (node24). GitHub-hosted runners have node24; the Forgejo
+      # runner's ubuntu-latest label maps to a custom ubuntu-ci:local image
+      # (node24). So the old v4/node20 pin — added when the act runner had no
+      # node24 runtime — is no longer needed.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install tools (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends shellcheck zsh bats fish
+
+      - name: Install tools (macOS)
+        if: runner.os == 'macOS'
+        run: brew install bash bats-core fzf shellcheck fish
+
+      - name: Shellcheck (bash sources)
+        # --severity=warning skips the SC2317 info false-positive on the
+        # `return || exit` source-or-execute guard.
+        run: |
+          shellcheck -s bash --severity=warning \
+            bin/pwdtintii \
+            scripts/contrast-check.sh \
+            lib/pwdtintii.core.sh \
+            pwdtintii.plugin.bash \
+            tests/helper.bash \
+            tests/run.sh
+
+      - name: Zsh syntax check
+        run: zsh -n pwdtintii.plugin.zsh
+
+      - name: Fish syntax check
+        run: fish -n pwdtintii.plugin.fish
+
+      - name: Bats suite (Linux)
+        if: runner.os == 'Linux'
+        run: bats tests/
+
+      - name: Bats suite (macOS)
+        if: runner.os == 'macOS'
+        run: PWDTINTII_TEST_BASH="$(brew --prefix)/bin/bash" tests/run.sh
+
+  release:
+    # GitHub only: the release step uses gh + GITHUB_TOKEN, which the Forgejo
+    # mirror runner has neither. github.server_url is github.com only on GitHub
+    # (the Forgejo instance reports its own URL), so the job is skipped there.
+    if: startsWith(github.ref, 'refs/tags/v') && github.server_url == 'https://github.com'
+    needs: lint-and-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Extract changelog for tag
+        id: changelog
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+          awk -v ver="$VERSION" '
+            /^## \[/ {
+              if (found) exit
+              if ($0 ~ "\\[" ver "\\]") { found=1; next }
+            }
+            found { print }
+          ' CHANGELOG.md > /tmp/release-notes.md
+          if [[ ! -s /tmp/release-notes.md ]]; then
+            echo "No changelog section found for version $VERSION" >&2
+            exit 1
+          fi
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --notes-file /tmp/release-notes.md

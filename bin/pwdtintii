@@ -1,0 +1,850 @@
+#!/usr/bin/env bash
+# pwdtintii — CLI companion to the shell plugin.
+# Invoked by the plugin via its absolute path; the `pwdtintii` shell function
+# shadows this binary on PATH, so interactively you drive it through `pt`.
+# Subcommands — all driven by the plugin / fzf binds, not for direct use; listed
+# in full so this block matches the dispatcher at the foot of the file.
+#   Browser & catalog:
+#     view                    Merged list+preview browser (fzf; ctrl-t cycles
+#                             swatch/contrast × dark/light)
+#     actions                 Action catalog driving the `pt` hub menu
+#     describe-action <name>  One action's description (for the hub preview pane)
+#   Palette readout:
+#     list                    Print all families (plain; scripts + no-fzf parse it)
+#     palette                 Print the loaded palette path
+#     palette-for <theme>     Print the bundled palette path for dark|light
+#   fzf-bind plumbing (preview panes, live tint, in-place reflow):
+#     preview-family <fam>    Colored swatches for a family (fzf --preview)
+#     preview-contrast <fam>  Swatches + WCAG/APCA scores per shade (fzf --preview)
+#     list-menu               Like list, ANSI-colored per row for the menus
+#     emit-family <fam>       Emit a family's focus tone (OSC 11) to /dev/tty
+#     emit-restore            Re-emit the shell's current tint to /dev/tty
+#     emit-backdrop <pal>     Emit a palette's viewer backdrop (OSC 11) to /dev/tty
+#     fzf-theme               The picker/viewer --color value (theme-neutral)
+#     pick-header <text>      Color a header string in the palette's HI tone
+#     pick-toggle <dir>       Picker ctrl-t step (dark/light); prints fzf actions
+#     view-advance <dir>      Viewer ctrl-t step (cycle); prints fzf actions
+#
+# Resolves the palette from PWDTINTII_PALETTE or ../palettes/default.tsv relative to this script.
+
+set -euo pipefail
+
+SELF_DIR="$(cd "$(dirname "$0")" && pwd)"
+# Canonical palettes dir — one place for the ../palettes path, collapsed so
+# `pt palette` and the picker's committed PWDTINTII_PALETTE read clean (no bin/..).
+# Path equality is handled by -ef in the plugin, not by this string.
+PALETTES_DIR="$(cd "${SELF_DIR}/.." && pwd)/palettes"
+PALETTE="${PWDTINTII_PALETTE:-${PALETTES_DIR}/default.tsv}"
+
+# Help works without a palette (it's what you read when things are misconfigured):
+# print the header doc block (lines 2..first blank) and stop before the code.
+case "${1:-}" in
+  -h|--help|help|"") sed -n '2,/^$/p' "$0"; exit 0 ;;
+esac
+
+if [[ ! -f "$PALETTE" ]]; then
+  echo "pwdtintii: palette not found: $PALETTE" >&2
+  exit 1
+fi
+
+shades_for() {
+  local want="$1"
+  awk -v want="$want" -F'\t' '$1 == want { print $2, $3, $4, $5; exit }' "$PALETTE"
+}
+
+hex_to_rgb() {
+  local hex="${1#\#}"
+  printf '%d %d %d\n' "0x${hex:0:2}" "0x${hex:2:2}" "0x${hex:4:2}"
+}
+
+# Integer YIQ perceived luminance of an r,g,b triple (0-255 each) → _PT_LUM.
+# >= 128 reads as a light color. A function — one weight set, one threshold, in
+# one place — returning via a global so it stays fork-free on the picker's
+# per-keystroke focus path (the formula used to be inlined in two helpers).
+_pt_lum() {
+  _PT_LUM=$(( ($1 * 299 + $2 * 587 + $3 * 114) / 1000 ))
+}
+
+# True when arg is a #rrggbb / rrggbb hex — the only form the math helpers parse.
+# Guards the 16# arithmetic from crashing on a malformed palette cell under set -e.
+_pt_valid_hex() {
+  [[ "${1#\#}" =~ ^[0-9a-fA-F]{6}$ ]]
+}
+
+# Set the terminal background to an already-validated #rrggbb. Mirrors the
+# plugin's _pwdtintii_emit branch exactly so the fzf live-preview path tints the
+# same way the prompt path does: inside tmux, OSC 11 would tint the *global*
+# background shared by every pane (sibling panes racing each other), so route to
+# `tmux select-pane -P` for a per-pane background; outside tmux, write OSC 11 to
+# the controlling terminal. No `-t`: the fzf bind runs inside the focused pane and
+# inherits $TMUX, like the plugin. Best-effort either way — a non-configured
+# /dev/tty (no controlling terminal) must not abort the picker under set -e, so
+# the group redirect swallows the failed redirect's message too (a trailing
+# 2>/dev/null alone would not). Callers validate the hex before emitting; we
+# normalize a bare rrggbb to #rrggbb here, matching the plugin's _pwdtintii_emit
+# (tmux rejects a `bg=` without the leading #, silently under the redirect).
+_pt_emit_bg() {
+  local hex="$1"
+  [[ "$hex" == \#* ]] || hex="#$hex"
+  if [[ -n "${TMUX:-}" ]]; then
+    tmux select-pane -P "bg=$hex" 2>/dev/null || true
+  else
+    { printf '\e]11;%s\a' "$hex" > /dev/tty; } 2>/dev/null || true
+  fi
+}
+
+# A full-width row painted solid in the shade color.
+_pt_fill_row() {
+  printf '\e[48;2;%s;%s;%sm%*s\e[0m\n' "$1" "$2" "$3" "$4" ''
+}
+
+# Readable foreground tones for text painted on a band of color (r,g,b). Sets
+# _PT_FG to "ghost_r ghost_g ghost_b  label_r label_g label_b": a muted tone for
+# the ghost-text sample (it gauges dim-autosuggestion readability, so it stays
+# dim — just dark-on-light instead of light-on-dark) and a strong tone for the
+# label. _pt_lum picks the band: >= 128 is a light band → flip to dark text.
+# The shipped palettes split cleanly (dark tops at lum 113, light bottoms at
+# 164); being per-band, this also covers a stray light shade in a dark palette.
+_pt_text_fg() {
+  _pt_lum "$1" "$2" "$3"
+  if (( _PT_LUM >= 128 )); then
+    _PT_FG="72 72 72 16 16 16"          # light band: dim-dark ghost + near-black label
+  else
+    _PT_FG="220 220 220 235 235 235"    # dark band: dim-light ghost + near-white label
+  fi
+}
+
+# A band's middle row: ghost italic "sample ghost text" on the left (so you can
+# judge autosuggestion readability on the shade), the shadeN + hex label on the
+# right, padded with the shade color across the full pane width. Both text tones
+# track the band's luminance (see _pt_text_fg) so they stay legible on a pale
+# light-palette shade, not only on the dark default.
+_pt_text_row() {
+  local r="$1" g="$2" b="$3" w="$4" label="$5" hex="$6"
+  local left=" sample ghost text" right="${label}  ${hex} "
+  if (( ${#left} + ${#right} + 1 > w )); then
+    left=""   # pane too narrow for the sample text — keep just the label
+  fi
+  local pad=$(( w - ${#left} - ${#right} ))
+  if (( pad < 0 )); then pad=0; fi
+  local gr gg gb lr lg lb
+  _pt_text_fg "$r" "$g" "$b"
+  read -r gr gg gb lr lg lb <<< "$_PT_FG"
+  printf '\e[48;2;%s;%s;%sm\e[38;2;%s;%s;%sm\e[3m%s\e[23m%*s\e[1;38;2;%s;%s;%sm%s\e[0m\n' \
+    "$r" "$g" "$b" "$gr" "$gg" "$gb" "$left" "$pad" '' "$lr" "$lg" "$lb" "$right"
+}
+
+# Distribute n color bands across an FZF_PREVIEW_LINES-tall pane: fill _PT_BANDS
+# with each band's row count (summing to the rows below the 2-line header) and
+# set _PT_GAP=1 when there's room for a blank line between bands. Shared by the
+# swatch (preview-family) and contrast (preview-contrast) previews so the two
+# stay vertically in step.
+_pt_band_heights() {
+  local n="$1" H="$2"
+  local avail=$(( H - 2 ))
+  if (( avail < n )); then avail=$n; fi
+  _PT_GAP=0
+  if (( avail >= n * 4 + (n - 1) )); then _PT_GAP=1; fi
+  local band_space=$(( avail - _PT_GAP * (n - 1) ))
+  local base=$(( band_space / n ))
+  local extra=$(( band_space % n ))
+  if (( base < 1 )); then base=1; fi
+  _PT_BANDS=()
+  local idx bh
+  for (( idx = 0; idx < n; idx++ )); do
+    bh=$base
+    if (( idx < extra )); then bh=$(( bh + 1 )); fi
+    _PT_BANDS+=( "$bh" )
+  done
+}
+
+# Render n color bands into the preview pane: fill each band solid in its shade
+# and, at the band's middle row, call the caller-named mid-row hook ($3) with the
+# band index + that shade's r,g,b + the pane width. Shared by preview-family and
+# preview-contrast so the band loop — and the subtle one-blank-between-bands gap
+# guard — live in one place; the two previews differ only in their mid row.
+# Reads _PT_BANDS / _PT_GAP from a preceding _pt_band_heights, and the caller's
+# `hexes` array (dynamic scope) for each band's fill color. The hook likewise
+# reads the caller's per-shade arrays by index.
+_pt_render_bands() {
+  local n="$1" w="$2" midfn="$3"
+  local idx row band_h mid r g b
+  for (( idx = 0; idx < n; idx++ )); do
+    read -r r g b < <(hex_to_rgb "${hexes[idx]}")
+    band_h="${_PT_BANDS[idx]}"
+    mid=$(( band_h / 2 ))
+    for (( row = 0; row < band_h; row++ )); do
+      if (( row == mid )); then
+        "$midfn" "$idx" "$r" "$g" "$b" "$w"
+      else
+        _pt_fill_row "$r" "$g" "$b" "$w"
+      fi
+    done
+    if (( _PT_GAP == 1 && idx < n - 1 )); then echo; fi
+  done
+}
+
+# The active palette's theme name for the preview banner: dark/light for the
+# bundled palettes, empty for a custom one (nothing dark/light to label).
+_pt_theme_label() {
+  local d l; d="$(cmd_palette_for dark)"; l="$(cmd_palette_for light)"
+  if   [[ "$PALETTE" -ef "$d" ]]; then printf 'dark'
+  elif [[ "$PALETTE" -ef "$l" ]]; then printf 'light'
+  fi
+}
+
+# The preview pane's top line: "<mode>[ · <theme>] · <family>", mode+theme bold.
+# This is the single place the viewer shows which of the cycle's states is live,
+# so the ctrl-t change happens here (right pane) and nowhere else — the fzf
+# header on the left stays static.
+_pt_preview_banner() {
+  local mode="$1" fam="$2" theme; theme="$(_pt_theme_label)"
+  # Color the banner in the theme's HI foreground rather than the terminal's
+  # default fg: the viewer flips its backdrop dark<->light on ctrl-t, and a
+  # default-fg banner would vanish on the light side (and a light picker tint).
+  # Bold lead (mode[ · theme]), normal-weight family — \e[22m drops bold but
+  # keeps the HI color.
+  local r g b; read -r r g b < <(_pt_ui_rgb)
+  local lead="$mode"
+  [[ -n "$theme" ]] && lead="${mode} · ${theme}"
+  printf '\e[1;38;2;%s;%s;%sm%s\e[22m · %s\e[0m\n\n' "$r" "$g" "$b" "$lead" "$fam"
+}
+
+# Mid-row hook for preview-family: the shade label + sample ghost text, in the
+# band's luminance-tracked tones. Reads the caller's `hexes` array by index.
+_pt_midrow_swatch() {
+  local idx="$1" r="$2" g="$3" b="$4" w="$5"
+  _pt_text_row "$r" "$g" "$b" "$w" "shade${idx}" "${hexes[idx]}"
+}
+
+cmd_preview_family() {
+  local fam="$1"
+  local shades; shades=$(shades_for "$fam")
+  if [[ -z "$shades" ]]; then
+    echo "unknown family: $fam"
+    return 1
+  fi
+
+  # fzf exports the preview-pane geometry; fall back to the terminal size (or a
+  # sane default) when run standalone. Stretching the bands to FZF_PREVIEW_LINES
+  # fills the pane top-to-bottom — no scrollbar, no empty lower half.
+  local H="${FZF_PREVIEW_LINES:-${LINES:-24}}"
+  local W="${FZF_PREVIEW_COLUMNS:-${COLUMNS:-44}}"
+  if (( W < 12 )); then W=12; fi
+
+  local -a hexes
+  read -r -a hexes <<<"$shades" || true
+  local n=${#hexes[@]}
+  if (( n == 0 )); then return 0; fi
+  # A custom palette reaches the CLI unvalidated (only the plugin loader checks);
+  # a malformed cell would crash hex_to_rgb's printf below, so reject it loudly.
+  local h
+  for h in "${hexes[@]}"; do
+    if ! _pt_valid_hex "$h"; then
+      echo "pwdtintii: family '$fam' has a malformed shade: $h" >&2
+      return 1
+    fi
+  done
+
+  _pt_preview_banner swatch "$fam"
+
+  _pt_band_heights "$n" "$H"
+  _pt_render_bands "$n" "$W" _pt_midrow_swatch
+}
+
+# ── Contrast preview: colored swatches annotated with readability scores ──────
+# Badge a WCAG ratio (passed as a centi-int: 9.52 -> 952) and an APCA Lc
+# magnitude (deci-int: 73.9 -> 739) into the standard tiers. Integer args keep
+# the focus path fork-free — no awk/bc per row.
+_pt_wcag_badge() {
+  if   (( $1 >= 450 )); then printf 'AA'
+  elif (( $1 >= 300 )); then printf 'AA-large'
+  else                       printf 'fail'
+  fi
+}
+_pt_apca_badge() {
+  if   (( $1 >= 750 )); then printf 'body'
+  elif (( $1 >= 600 )); then printf 'large'
+  elif (( $1 >= 450 )); then printf 'min'
+  else                       printf 'low'
+  fi
+}
+
+# A contrast band's middle row: the shade label, its WCAG ratio and APCA Lc
+# (against the theme's standard text), painted in that shade's best-readable
+# foreground — the tone contrast.py recommends — on the shade itself. So you
+# read the scores in the very color the engine picked as most legible here.
+# Compacts the layout in two steps when the pane is too narrow for the full line.
+_pt_contrast_row() {
+  local r="$1" g="$2" b="$3" w="$4" label="$5" hex="$6" \
+        wcag="$7" wb="$8" lc="$9" ab="${10}" fgr="${11}" fgg="${12}" fgb="${13}"
+  local text=" ${label}  ${hex}  WCAG ${wcag} ${wb}  APCA ${lc} ${ab} "
+  if (( ${#text} > w )); then text=" ${label}  W ${wcag} ${wb}  A ${lc} ${ab} "; fi
+  if (( ${#text} > w )); then text=" ${label} ${wb}/${ab} "; fi
+  local pad=$(( w - ${#text} ))
+  if (( pad < 0 )); then pad=0; fi
+  printf '\e[48;2;%s;%s;%sm\e[1;38;2;%s;%s;%sm%s%*s\e[0m\n' \
+    "$r" "$g" "$b" "$fgr" "$fgg" "$fgb" "$text" "$pad" ''
+}
+
+# preview-contrast <family>: like preview-family, but each band carries its
+# readability scores. Parses contrast.py --row (the one source of the math), so
+# the colored viewer and the text dump can never disagree. Theme is auto (the
+# palette's mean luminance) — the bundled dark/light palettes classify the way
+# the viewer's dark/light cycle intends.
+# Mid-row hook for preview-contrast: the shade label + its WCAG/APCA scores, in
+# the best-readable foreground the engine recommends. Reads the caller's parsed
+# per-shade arrays (idxs/hexes/wcags/lcs/bfgs) by index. Badges + the best-fg rgb
+# are derived once per band (only the mid row runs this), no per-row fork.
+_pt_midrow_contrast() {
+  local idx="$1" r="$2" g="$3" b="$4" w="$5"
+  local fgr fgg fgb
+  read -r fgr fgg fgb < <(hex_to_rgb "${bfgs[idx]}")
+  local wcag_centi="${wcags[idx]/./}" lc_mag="${lcs[idx]#[-+]}"
+  local lc_deci="${lc_mag/./}"
+  local wb ab
+  wb=$(_pt_wcag_badge "$wcag_centi")
+  ab=$(_pt_apca_badge "$lc_deci")
+  _pt_contrast_row "$r" "$g" "$b" "$w" "shade${idxs[idx]}" "${hexes[idx]}" \
+    "${wcags[idx]}" "$wb" "${lcs[idx]}" "$ab" "$fgr" "$fgg" "$fgb"
+}
+
+cmd_preview_contrast() {
+  local fam="$1"
+  command -v python3 >/dev/null 2>&1 || { echo "pwdtintii: pt contrast needs python3"; return 1; }
+  local rows; rows=$(python3 "${SELF_DIR}/../scripts/contrast.py" "$PALETTE" auto --row "$fam") || return 1
+  if [[ -z "$rows" ]]; then
+    echo "unknown family: $fam"
+    return 1
+  fi
+
+  local H="${FZF_PREVIEW_LINES:-${LINES:-24}}"
+  local W="${FZF_PREVIEW_COLUMNS:-${COLUMNS:-44}}"
+  if (( W < 12 )); then W=12; fi
+
+  # Parse all rows first so the band count is known before height distribution.
+  local -a idxs hexes wcags lcs bfgs
+  local i hex wcag lc bfg
+  while IFS=$'\t' read -r i hex wcag lc bfg; do
+    [[ -z "$i" ]] && continue
+    idxs+=( "$i" ); hexes+=( "$hex" ); wcags+=( "$wcag" ); lcs+=( "$lc" ); bfgs+=( "$bfg" )
+  done <<< "$rows"
+  local n=${#hexes[@]}
+  if (( n == 0 )); then return 0; fi
+
+  _pt_preview_banner contrast "$fam"
+  _pt_band_heights "$n" "$H"
+  _pt_render_bands "$n" "$W" _pt_midrow_contrast
+}
+
+# Darken a #rrggbb hex toward black by PCT percent (50 = half brightness).
+_pt_dim_hex() {
+  local hex="${1#\#}" pct="$2"
+  local r=$(( 16#${hex:0:2} * pct / 100 ))
+  local g=$(( 16#${hex:2:2} * pct / 100 ))
+  local b=$(( 16#${hex:4:2} * pct / 100 ))
+  printf '#%02x%02x%02x\n' "$r" "$g" "$b"
+}
+
+# Lighten a #rrggbb hex toward white by PCT percent (50 = halfway to white).
+# The mirror of _pt_dim_hex, for light palettes.
+_pt_lift_hex() {
+  local hex="${1#\#}" pct="$2"
+  local r=$(( 16#${hex:0:2} )) g=$(( 16#${hex:2:2} )) b=$(( 16#${hex:4:2} ))
+  r=$(( r + (255 - r) * pct / 100 ))
+  g=$(( g + (255 - g) * pct / 100 ))
+  b=$(( b + (255 - b) * pct / 100 ))
+  printf '#%02x%02x%02x\n' "$r" "$g" "$b"
+}
+
+# True when a #rrggbb hex reads as a light color (perceived luminance, integer
+# YIQ, >= 128) — picks the focus-tone direction per palette.
+_pt_is_light_hex() {
+  local hex="${1#\#}"
+  _pt_lum "$(( 16#${hex:0:2} ))" "$(( 16#${hex:2:2} ))" "$(( 16#${hex:4:2} ))"
+  (( _PT_LUM >= 128 ))
+}
+
+# The live-preview focus background for a family: a tone nudged just past the
+# family's shade range so all four swatches stand out in the preview pane while
+# the terminal still tints toward the family. A dark palette dims the darkest
+# shade toward black (sits below all four). A light palette — pale shades, and
+# usually a light terminal theme with dark text that a darkened background would
+# render unreadable — lifts the lightest shade toward white instead (sits above
+# all four, and keeps that dark text legible).
+_pt_focus_tone() {
+  local shades; shades=$(shades_for "$1")
+  [[ -z "$shades" ]] && return 1
+  # Darkest + lightest by luminance, not by position — so a palette that orders
+  # its shades light-to-dark still classifies correctly (and a malformed cell
+  # bails cleanly instead of crashing the 16# arithmetic under set -e).
+  local sh dark="" light="" dlum=256 llum=-1 h
+  for sh in $shades; do
+    _pt_valid_hex "$sh" || return 1
+    h="${sh#\#}"
+    _pt_lum "$(( 16#${h:0:2} ))" "$(( 16#${h:2:2} ))" "$(( 16#${h:4:2} ))"
+    if (( _PT_LUM < dlum )); then dlum=$_PT_LUM; dark="$sh"; fi
+    if (( _PT_LUM > llum )); then llum=$_PT_LUM; light="$sh"; fi
+  done
+  if _pt_is_light_hex "$dark"; then
+    _pt_lift_hex "$light" 50
+  else
+    _pt_dim_hex "$dark" 50
+  fi
+}
+
+cmd_emit_family() {
+  local tone; tone=$(_pt_focus_tone "${1:-}") || return 0
+  # _pt_focus_tone returns a validated #rrggbb (it parses each shade through the
+  # 16# math); route it through the tmux-aware emit so inside tmux it tints only
+  # the focused pane, not every pane (the prompt path's _pwdtintii_emit branch).
+  _pt_emit_bg "$tone"
+}
+
+cmd_list() {
+  awk -F'\t' '$1 != "" && $1 != "family" && $1 !~ /^#/ { print $1 }' "$PALETTE"
+}
+
+# Like list, but each family carries a high-contrast SGR foreground for the fzf
+# menus (run with --ansi). Recomputed from PWDTINTII_PALETTE on every call, so the
+# picker's ctrl-t reload reflows the list dark<->light in place: fzf re-reads
+# per-line ANSI colors on a reload, where a static --color stays fixed for the
+# whole session. `list` itself stays plain (scripts + the no-fzf fallback parse it).
+cmd_list_menu() {
+  local r g b
+  read -r r g b < <(_pt_ui_rgb)
+  local sgr rst
+  sgr=$(printf '\033[38;2;%s;%s;%sm' "$r" "$g" "$b")
+  rst=$(printf '\033[0m')
+  awk -F'\t' -v sgr="$sgr" -v rst="$rst" \
+    '$1 != "" && $1 != "family" && $1 !~ /^#/ { print sgr $1 rst }' "$PALETTE"
+}
+
+cmd_palette() {
+  echo "$PALETTE"
+}
+
+# Resolve a bundled palette path by theme name. The viewer's dark/light cycle
+# goes through here, so the two bundled locations live in one place.
+cmd_palette_for() {
+  case "${1:-}" in
+    dark)  printf '%s\n' "${PALETTES_DIR}/default.tsv" ;;
+    light) printf '%s\n' "${PALETTES_DIR}/light.tsv" ;;
+    *) echo "pwdtintii: palette-for needs 'dark' or 'light'" >&2; return 1 ;;
+  esac
+}
+
+# The viewer's terminal backdrop per cycle state: a deliberate dark default that
+# flips to light on ctrl-t, so the whole frame (global bg + menu fonts + preview)
+# tracks the dark/light cycle together instead of a light preview floating in a
+# dark frame. Darker/lighter than the palette shades so the swatches still pop.
+# Theme by the palette's mean luminance, so a custom light palette gets the light
+# backdrop too.
+_pt_view_backdrop() {
+  if _pt_palette_is_light "$1"; then printf '#e8eaee'; else printf '#16191f'; fi
+}
+
+# The viewer's header text: "[<family>/<shade> · ]ctrl-t: cycle · esc: close".
+# Shared by cmd_view (launch) and cmd_view_advance (ctrl-t) so the reflowed and
+# the initial header read identically; both see PWDTINTII_VIEW_* (the shell's
+# current family/shade, passed by the plugin).
+_pt_view_header_text() {
+  local h='ctrl-t: cycle · esc: close'
+  [[ -n "${PWDTINTII_VIEW_FAMILY:-}" ]] && h="${PWDTINTII_VIEW_FAMILY}/${PWDTINTII_VIEW_SHADE:-?} · ${h}"
+  printf '%s' "$h"
+}
+
+# emit-restore: re-emit the shell's current tint (its family+shade from
+# PWDTINTII_VIEW_*, in the loaded palette) to /dev/tty. The viewer binds this to
+# enter/esc so the original background is back BEFORE fzf clears its drawing —
+# closing the default-bg flash between fzf's exit and the prompt's re-tint (the
+# viewer flips the backdrop during the session, so something must put it back).
+cmd_emit_restore() {
+  local fam="${PWDTINTII_VIEW_FAMILY:-}" idx="${PWDTINTII_VIEW_SHADE:-0}"
+  [[ -z "$fam" ]] && return 0
+  local shades; shades=$(shades_for "$fam") || return 0
+  [[ -z "$shades" ]] && return 0
+  local -a hexes; read -r -a hexes <<< "$shades"
+  (( ${#hexes[@]} == 0 )) && return 0
+  [[ "$idx" =~ ^[0-9]+$ ]] || idx=0
+  (( idx >= ${#hexes[@]} )) && idx=0
+  local hex="${hexes[idx]}"
+  _pt_valid_hex "$hex" || return 0
+  _pt_emit_bg "$hex"
+}
+
+# emit-backdrop <palette>: emit that palette's viewer backdrop (the dark/light
+# neutral from _pt_view_backdrop) to /dev/tty. The viewer's ctrl-t routes its
+# backdrop flip through this via a coordinated execute-silent action, instead of
+# writing the OSC as a raw side effect during the transform — the latter races
+# fzf's renderer and the flip got dropped until the next event. Fails open with no
+# tty (the group redirect swallows the failed redirect), so it stays test-safe.
+cmd_emit_backdrop() {
+  local pal="${1:-}"
+  [[ -z "$pal" ]] && return 0
+  # _pt_view_backdrop returns one of two hardcoded #rrggbb neutrals — always
+  # valid — so emit it tmux-aware (per-pane under tmux, OSC 11 otherwise).
+  _pt_emit_bg "$(_pt_view_backdrop "$pal")"
+}
+
+# view-advance <statedir>: the ctrl-t step of the viewer. Reads the current cycle
+# index + the state table (one "palette<TAB>preview-cmd" line per state, written
+# by cmd_view), advances the index (wrapping), and repaints the WHOLE frame for
+# the new state's theme: it records the new state's palette in the state dir
+# ($sd/pal) and prints the fzf action chain that reloads the list (so its per-line
+# colors reflow dark<->light, kept on the focused family by --track --id-nth),
+# swaps the header (its own ANSI color, via pick-header) and the preview, and
+# forces the preview to run now (refresh-preview — else fzf keeps the cached render
+# until the next arrow key). The terminal backdrop flip is NOT written here: a raw
+# OSC write during a transform races fzf's renderer and gets dropped (the same
+# defect the picker's ctrl-t hit), so the ctrl-t bind chains a coordinated
+# execute-silent(emit-backdrop $sd/pal) after this transform.
+# Internal: fzf calls it through transform(), not a user subcommand.
+cmd_view_advance() {
+  local sd="$1"
+  local idx n line pal pcmd self
+  idx=$(cat "$sd/idx" 2>/dev/null || echo 0)
+  [[ "$idx" =~ ^[0-9]+$ ]] || idx=0   # a non-numeric token would crash (( idx+1 )) under set -u
+  n=$(wc -l < "$sd/states")
+  (( n == 0 )) && return 0
+  idx=$(( (idx + 1) % n ))
+  printf '%s\n' "$idx" > "$sd/idx"
+  line=$(sed -n "$(( idx + 1 ))p" "$sd/states")
+  IFS=$'\t' read -r pal pcmd <<< "$line"
+  printf '%s\n' "$pal" > "$sd/pal"
+  self="${SELF_DIR}/pwdtintii"
+  local hdr chdr
+  hdr=$(_pt_view_header_text)
+  # Fall back to the plain (uncolored) header if pick-header ever fails, so ctrl-t
+  # still emits a well-formed action chain rather than empty stdout (a silent no-op).
+  chdr=$(PWDTINTII_PALETTE="$pal" "$self" pick-header "$hdr") || chdr="$hdr"
+  printf 'reload(PWDTINTII_PALETTE=%s %s list-menu)+change-preview(PWDTINTII_PALETTE=%s %s %s {})+change-header(%s)+refresh-preview\n' \
+    "$pal" "$self" "$pal" "$self" "$pcmd" "$chdr"
+}
+
+# view: the merged list+preview browser — the old `list` + `preview` in one. An
+# fzf picker over the families with a colored preview pane, and one ctrl-t that
+# cycles BOTH panes plus the terminal backdrop through swatch/dark, swatch/light,
+# contrast/dark, contrast/light (or just swatch <-> contrast for a custom palette
+# with no light variant). Each ctrl-t flips the whole frame together — backdrop,
+# list colors, header and preview — so it stays coherent dark or light instead of
+# a light preview floating in a dark frame (see cmd_view_advance). The state
+# machine lives in a temp dir it steps on each ctrl-t. Read-only: ENTER and ESC
+# both close it (nothing is pinned); on the way out they re-emit the shell's tint
+# (emit-restore) so the backdrop the cycle changed snaps back without a flash. The
+# shell passes its current family/shade + palette via PWDTINTII_VIEW_* /
+# PWDTINTII_PALETTE for the header and that restore.
+cmd_view() {
+  if ! command -v fzf >/dev/null 2>&1; then
+    cmd_list   # no fzf: degrade to the plain family list, like list/preview did
+    return 0
+  fi
+  local dark light bundled=0
+  dark="$(cmd_palette_for dark)"
+  light="$(cmd_palette_for light)"
+  if [[ -f "$dark" && -f "$light" ]] && { [[ "$PALETTE" -ef "$dark" ]] || [[ "$PALETTE" -ef "$light" ]]; }; then
+    bundled=1
+  fi
+
+  # State table: one "palette<TAB>preview-cmd" line per cycle step. cmd_view_advance
+  # steps the index on each ctrl-t; the banner inside each preview names the state.
+  local sd; sd="$(mktemp -d "${TMPDIR:-/tmp}/pwdtintii-view.XXXXXX")"
+  printf '0\n' > "$sd/idx"
+  {
+    if (( bundled )); then
+      printf '%s\tpreview-family\n'   "$dark"
+      printf '%s\tpreview-family\n'   "$light"
+      printf '%s\tpreview-contrast\n' "$dark"
+      printf '%s\tpreview-contrast\n' "$light"
+    else
+      printf '%s\tpreview-family\n'   "$PALETTE"
+      printf '%s\tpreview-contrast\n' "$PALETTE"
+    fi
+  } > "$sd/states"
+
+  local self="${SELF_DIR}/pwdtintii"
+  local initpal initcmd
+  IFS=$'\t' read -r initpal initcmd < <(sed -n '1p' "$sd/states")
+
+  # Chrome is theme-neutral gray (cmd_fzf_theme) because ctrl-t flips the backdrop
+  # dark<->light within one fzf session and --color is static per session — the
+  # same reason the picker uses it. What stays crisp across the flip: the list
+  # reflows per-line (--ansi + reload, the cursor kept on the focused family by
+  # --track --id-nth) and the header carries its own ANSI color (pick-header). The
+  # initial list/header/preview render in state 0's theme (dark), under initpal.
+  local hdr chdr colorspec
+  hdr=$(_pt_view_header_text)
+  chdr=$(PWDTINTII_PALETTE="$initpal" "$self" pick-header "$hdr") || chdr="$hdr"
+  colorspec=$(cmd_fzf_theme)
+
+  # Open on the deliberate dark backdrop (state 0); ctrl-t flips it with the cycle.
+  # tmux-aware (per-pane under tmux), like the emit-backdrop the ctrl-t bind runs.
+  _pt_emit_bg "$(_pt_view_backdrop "$initpal")"
+
+  # --height=99%, not 100%: at exactly 100% fzf takes over the alternate screen
+  # (\e[?1049h on open, \e[?1049l on close), and that buffer switch repaints the
+  # whole frame — flashing the terminal's default background on every exit (the
+  # ESC flicker we kept chasing with OSC restores). Any sub-100% height keeps fzf
+  # inline, so closing it just clears its own rows and never repaints the frame.
+  PWDTINTII_PALETTE="$initpal" "$self" list-menu | fzf \
+      --ansi \
+      --prompt='view > ' \
+      --height=99% \
+      --reverse \
+      --track \
+      --id-nth=1 \
+      --preview="PWDTINTII_PALETTE=${initpal} ${self} ${initcmd} {}" \
+      --preview-window=right:55%:nowrap \
+      --bind="enter:execute-silent(${self} emit-restore)+abort" \
+      --bind="esc:execute-silent(${self} emit-restore)+abort" \
+      --bind='change:first' \
+      --bind="ctrl-t:transform(${self} view-advance ${sd})+execute-silent(${self} emit-backdrop \"\$(cat ${sd}/pal)\")" \
+      --color="$colorspec" \
+      --header="${chdr}" \
+      >/dev/null || true
+  # Clean up inline (not via an EXIT trap): the trap fires after this function
+  # returns, where `local sd` is out of scope — under set -u that aborts the
+  # script with "sd: unbound variable" before rm runs, leaking the dir. fzf
+  # absorbs ctrl-c itself, so control returns here either way. Mirrors the picker.
+  rm -rf "$sd"
+}
+
+# ── Picker / viewer fzf chrome: high-contrast menus over the live tint ───────
+# The picker (the plugin's _pwdtintii_pick_interactive) used to restart fzf on
+# every ctrl-t — a full screen redraw that flickered. The helpers below let it
+# keep fzf open and repaint in place instead, the same transform() technique as
+# the viewer above. The plugin keeps the committed-pick + live-tint logic.
+#
+# Both menus sit on a background the tool tints via OSC 11 (the picker per
+# keystroke, the viewer to the shell's current family), and fzf otherwise inherits
+# the terminal's ANSI foreground — which has no guaranteed contrast against an
+# arbitrary tint, so the list rendered dim/illegible. These helpers paint the menu
+# in a tone that contrasts the tint: light text on a dark palette (its tints are
+# dark), dark text on a light one.
+
+# True when a palette's mean shade luminance reads light (>= 128) — picks the menu
+# tone direction and the viewer backdrop. Defaults to the loaded $PALETTE; takes a
+# path so the viewer can classify a cycle state's palette (_pt_view_backdrop). One
+# awk pass; off the per-keystroke focus path (only menu setup + the ctrl-t reload
+# reach it).
+_pt_palette_is_light() {
+  local pal="${1:-$PALETTE}"
+  local mean
+  mean=$(awk -F'\t' '
+    function hexval(s,    v, i, c) {
+      v = 0
+      for (i = 1; i <= length(s); i++) {
+        c = index("0123456789abcdef", tolower(substr(s, i, 1))) - 1
+        if (c < 0) c = 0
+        v = v * 16 + c
+      }
+      return v
+    }
+    $1 != "" && $1 != "family" && $1 !~ /^#/ {
+      for (i = 2; i <= 5; i++) {
+        h = $i; sub(/^#/, "", h)
+        sum += (hexval(substr(h,1,2)) * 299 + hexval(substr(h,3,2)) * 587 + hexval(substr(h,5,2)) * 114) / 1000
+        n++
+      }
+    }
+    END { if (n > 0) printf "%d", sum / n; else print 128 }
+  ' "$pal")
+  (( mean >= 128 ))
+}
+
+# Set the legible menu foreground for the active palette: _PT_UI_HI contrasts the
+# tint — near-black on a light palette, near-white on a dark one. Used by the
+# per-line list color (cmd_list_menu), the ANSI header (cmd_pick_header) and the
+# preview banner; the picker/viewer chrome itself is theme-neutral (cmd_fzf_theme).
+_pt_ui_tone() {
+  if _pt_palette_is_light; then
+    _PT_UI_HI='#161a1f'
+  else
+    _PT_UI_HI='#e9ecf0'
+  fi
+}
+
+# The active palette's HI foreground as an "r g b" triple — _pt_ui_tone picks the
+# hex, hex_to_rgb splits it. The banner, the list-menu rows, and the pick header
+# all paint in this tone: `read -r r g b < <(_pt_ui_rgb)`.
+_pt_ui_rgb() {
+  _pt_ui_tone
+  hex_to_rgb "$_PT_UI_HI"
+}
+
+# fzf-theme: the picker's AND viewer's --color value — deliberately theme-neutral.
+# Both flip the menu background dark<->light within a single fzf session (the
+# picker per focused family, the viewer per cycle step), but fzf's --color is
+# static per session with no runtime recolor action (change-* covers text, not
+# colors). A neutral mid-gray contrasts BOTH a dark and a light background
+# (~3.5:1 bold either way), so the chrome stays legible across the flip where a
+# theme-specific tone would vanish on the flipped side. The focused-row block is
+# the same gray — it reads as a block over the background, and because the gray
+# sits between near-white and near-black in luminance, the row's reflowed text
+# (from the --ansi list-menu) reads on it whether it flipped light or dark. The
+# header is the one exception: it carries its own ANSI color (cmd_pick_header) and
+# reflows crisply, since the header processes ANSI even when --color sets it too.
+# fg+/pointer are near-white as insurance — if fzf ever honored fg+ over the
+# --ansi row color, gray-on-gray would vanish; near-white-on-gray never does.
+# separator/scrollbar/border are pinned so the terminal's default fg can't leak.
+cmd_fzf_theme() {
+  local g='#777d86' fg='#e9ecf0'
+  printf 'gutter:-1,fg:%s,fg+:%s:bold,bg+:%s,hl:%s:underline,hl+:%s:underline,pointer:%s:bold,marker:%s:bold,prompt:%s:bold,info:%s,spinner:%s,query:%s,header:%s:bold,separator:%s,scrollbar:%s,border:%s\n' \
+    "$g" "$fg" "$g" "$g" "$fg" "$fg" "$fg" "$g" "$g" "$g" "$g" "$g" "$g" "$g" "$g"
+}
+
+# Color a picker header string in the active palette's HI foreground (bold). The
+# picker can't reflow its --color chrome on the dark<->light toggle (see
+# cmd_fzf_theme), but the header text itself is ANSI-processed, so it carries its
+# own theme color here and the toggle swaps it via change-header. Run with the new
+# group's PWDTINTII_PALETTE to get that group's HI.
+cmd_pick_header() {
+  local r g b
+  read -r r g b < <(_pt_ui_rgb)
+  printf '\033[1;38;2;%s;%s;%sm%s\033[0m' "$r" "$g" "$b" "${1:-}"
+}
+
+# pick-toggle <statedir>: the ctrl-t step of the picker. Flips the active group
+# (dark<->light), records the new palette in the state dir (so the live-tint focus
+# bind and the committed pick read the current one), and prints the fzf action
+# chain that swaps the list, preview, header, and prompt in place — no restart.
+# It does NOT emit the live tint itself: a raw OSC write during a transform races
+# fzf's renderer and gets dropped (the bug where the recolored list — near-black on
+# light — sat unreadable on the old dark tint until the next arrow key). The ctrl-t
+# bind instead chains a coordinated execute-silent(emit-family {}) after this
+# transform — the same proven path the focus bind uses — reading the $sd/pal
+# written here, so the global background flips together with the reloaded list.
+cmd_pick_toggle() {
+  local sd="$1"
+  local grp; grp=$(cat "$sd/grp" 2>/dev/null || echo dark)
+  local newgrp other newpal self
+  if [[ "$grp" == dark ]]; then newgrp=light; other=dark; else newgrp=dark; other=light; fi
+  newpal="$(cmd_palette_for "$newgrp")"
+  printf '%s\n' "$newgrp" > "$sd/grp"
+  printf '%s\n' "$newpal" > "$sd/pal"
+  self="${SELF_DIR}/pwdtintii"
+  # Header reflows to the NEW group's theme color (it processes ANSI, so the swap
+  # carries the color); the prompt label follows the group; refresh-preview
+  # repaints the swatches now (see cmd_view_advance). The rest of the chrome is
+  # theme-neutral gray, so it needs no swap. cmd_pick_header runs under the new
+  # palette to read its HI.
+  local hdrtext="↑↓ · ENTER pin · ctrl-t: ${other} theme · ESC cancel"
+  local chdr; chdr=$(PWDTINTII_PALETTE="$newpal" "$self" pick-header "$hdrtext")
+  printf 'reload(PWDTINTII_PALETTE=%s %s list-menu)+change-preview(PWDTINTII_PALETTE=%s %s preview-family {})+change-header(%s)+change-prompt(pick %s > )+refresh-preview\n' \
+    "$newpal" "$self" "$newpal" "$self" "$chdr" "$newgrp"
+}
+
+# ── Action catalog for the `pt` hub menu ─────────────────────────────────────
+# One row per action: machine-name <TAB> padded "name + gloss" shown in fzf.
+# Single source of truth — the shell dispatcher re-runs the chosen machine name
+# (field 1), so every action listed here needs a matching arm in the plugin's
+# pwdtintii() dispatcher (the test suite guards that coupling).
+cmd_actions() {
+  printf '%s\t%-9s%s\n' \
+    pick     'pick'     'pin a color family (live picker)' \
+    view     'view'     'browse the palette (colored; ctrl-t cycles)' \
+    list     'list'     'families + current mapping' \
+    auto     'auto'     'back to directory-auto (unpin)' \
+    off      'off'      'stop tinting, reset background' \
+    reload   'reload'   're-read the palette from disk' \
+    contrast 'contrast' 'WCAG + APCA contrast of all shades' \
+    doctor   'doctor'   'diagnose OSC 11 / fzf / palette'
+}
+
+# Word-wrap stdin to W columns, preserving blank lines (paragraph breaks) and
+# passing already-fitting lines through untouched — so a hand-spaced title or
+# footer keeps its layout while long body paragraphs reflow. Used by
+# describe-action so the hub preview fills its pane at any width instead of fzf
+# hard-wrapping our fixed lines (the ↳ continuation markers). Counts bytes, not
+# display cells, so a line with a multibyte —/· wraps a touch early — harmless
+# here (those sit in short title/footer lines that never reach the wrap point).
+_pt_wrap() {
+  awk -v W="$1" '
+    length($0) <= W { print; next }
+    {
+      line = ""
+      n = split($0, words, " ")
+      for (i = 1; i <= n; i++) {
+        if (words[i] == "") continue
+        if (line == "") line = words[i]
+        else if (length(line) + 1 + length(words[i]) <= W) line = line " " words[i]
+        else { print line; line = words[i] }
+      }
+      if (length(line)) print line
+    }
+  '
+}
+
+# One action's help text, shown in the hub's fzf preview pane. Each paragraph is
+# one logical line; _pt_wrap reflows it to the pane's real width (fzf exports
+# FZF_PREVIEW_COLUMNS), capped at a readable measure so wide panes don't stretch
+# the prose, floored so a sliver still wraps sanely.
+cmd_describe_action() {
+  local W="${FZF_PREVIEW_COLUMNS:-${COLUMNS:-50}}"
+  local wrap_w=$(( W - 1 ))
+  if (( wrap_w > 76 )); then wrap_w=76; fi
+  if (( wrap_w < 24 )); then wrap_w=24; fi
+  {
+    case "${1:-}" in
+      pick)
+        printf '%s\n\n' 'pick — pin a color family'
+        printf '%s\n\n' 'Opens the fzf family picker. Arrow keys preview each family live as the terminal background (OSC 11); ENTER pins it for this shell, ESC cancels. ctrl-t toggles between the dark and light palette groups.'
+        printf '%s\n' 'Direct: pt pick <family>   ·   alias: ptpick' ;;
+      view)
+        printf '%s\n\n' 'view — browse the palette'
+        printf '%s\n\n' 'Opens an fzf browser over the families with a colored preview pane. ctrl-t cycles the pane through swatch and contrast, dark and light; ESC closes. Read-only — it previews, it does not pin (use pick for that).'
+        printf '%s\n' 'Direct: pt view   ·   alias: ptview' ;;
+      list)
+        printf '%s\n\n' 'list — families + current mapping'
+        printf '%s\n\n' 'Shows the resolved key, family and shade for this shell, then every family with its four shades.'
+        printf '%s\n' 'Direct: pt list   ·   alias: ptlist' ;;
+      auto)
+        printf '%s\n\n' 'auto — back to directory-derived mode'
+        printf '%s\n\n' 'Clears a pinned family so the background follows the current directory hash again.'
+        printf '%s\n' 'Direct: pt auto   (same as pt pick --auto)' ;;
+      off)
+        printf '%s\n\n' 'off — stop tinting'
+        printf '%s\n\n' 'Resets the terminal background to its default (OSC 111) and stops re-tinting on every prompt. Re-enable with pt auto, pt pick, or pt reload.'
+        printf '%s\n' 'Direct: pt off' ;;
+      reload)
+        printf '%s\n\n' 'reload — re-read the palette'
+        printf '%s\n\n' 'Reloads the palette TSV (and overrides) from disk and re-applies — run it after editing the palette.'
+        printf '%s\n' 'Direct: pt reload   ·   alias: ptreload' ;;
+      contrast)
+        printf '%s\n\n' 'contrast — WCAG + APCA contrast'
+        printf '%s\n\n' 'Scores each shade against the theme text in both WCAG ratios and APCA Lc, and flags the unreadable combos.'
+        printf '%s\n' 'Direct: pt contrast   ·   alias: ptcontrast' ;;
+      doctor)
+        printf '%s\n\n' 'doctor — diagnose the setup'
+        printf '%s\n\n' 'Checks the moving parts — hash command, fzf, python3, the loaded palette, current state — and probes the terminal for OSC 11 support live (a terminal that ignores OSC 11 is the main silent-failure mode).'
+        printf '%s\n' 'Direct: pt doctor   (also: pt diag)' ;;
+      *)
+        printf '%s\n\n%s\n' "${1:-}" '(no description)' ;;
+    esac
+  } | _pt_wrap "$wrap_w"
+}
+
+cmd=${1:-}
+shift || true
+case "$cmd" in
+  view)             cmd_view ;;
+  view-advance)     cmd_view_advance "${1:-}" ;;
+  fzf-theme)        cmd_fzf_theme ;;
+  pick-header)      cmd_pick_header "${1:-}" ;;
+  pick-toggle)      cmd_pick_toggle "${1:-}" ;;
+  preview-family)   cmd_preview_family "${1:-}" ;;
+  preview-contrast) cmd_preview_contrast "${1:-}" ;;
+  emit-family)      cmd_emit_family "${1:-}" ;;
+  emit-restore)     cmd_emit_restore ;;
+  emit-backdrop)    cmd_emit_backdrop "${1:-}" ;;
+  actions)          cmd_actions ;;
+  describe-action)  cmd_describe_action "${1:-}" ;;
+  list)             cmd_list ;;
+  list-menu)        cmd_list_menu ;;
+  palette)          cmd_palette ;;
+  palette-for)      cmd_palette_for "${1:-}" ;;
+  *)
+    echo "pwdtintii: unknown subcommand: $cmd" >&2
+    exit 1
+    ;;
+esac
